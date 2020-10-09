@@ -36,17 +36,17 @@ metrics<-function(prop_fit,smooth_fit){
   s.res<-s.fit-p.fit
   w<-smooth_fit$model$'(weights)'
   f1<-lm(s.fit~p.fit-1,w=w)
-  c('Prop Const'=prop_fit$coefficients,
-    'R-squared'=summary(prop_fit)$r.squared,
-    'Scaled Sum of Squares'=sum((p.res/p.fit)^2),
-    #'Sum of Squares'=sum((p.res)^2)/p.fit[1]^2,
-    'Scaled Absolute Value'=sum(abs(p.res/p.fit)),
-    'Absolute Value'=sum(abs(p.res))/p.fit[1],
-    'Smoothed R-squared'=summary(f1)$r.squared,
-    'Smoothed Scaled Sum of Squares'=sum((s.res/p.fit)^2),
-    #'Smoothed Sum of Squares'=sum((s.res)^2)/p.fit[1]^2,
-    'Smoothed Scaled Abs. Value'=sum(abs(s.res/p.fit)),
-    'Smoothed Absolute Value'=sum(abs(s.res))/p.fit[1])
+  c('Prop.Const'=prop_fit$coefficients,
+    'R.squared'=summary(prop_fit)$r.squared,
+    'Scaled.Mean.Squared.Error'=mean((p.res/p.fit)^2),
+    'Mean.Squared.Error'=sum((p.res)^2),
+    'Scaled.Mean.Absolute.Error'=mean(abs(p.res/p.fit)),
+    'Mean.Absolute.Error'=mean(abs(p.res)),
+    'Smoothed.R.squared'=summary(f1)$r.squared,
+    'Smoothed.Scaled.Mean.Squared.Error'=mean((s.res/p.fit)^2),
+    'Smoothed.Mean.Squared.Error'=mean((s.res)^2)/p.fit[1]^2,
+    'Smoothed.Scaled.Mean.Absolute.Error'=mean(abs(s.res/p.fit)),
+    'Smoothed.Mean.Absolute.Error'=mean(abs(s.res))/p.fit[1])
 }
 
 
@@ -86,3 +86,17 @@ nonpar.boot<-function(dat,i){
   cbind(boot.ind,boot.ind2)
 }
 
+round_or_truncate <- function(x,numsig) {
+  
+  if(x < 0) {
+    return(signif(x,numsig)) 
+    
+  } else if(x > 10) {
+    return(round(x,0))
+    
+  } else {
+    return(round(x,numsig))
+  }
+  
+  
+}

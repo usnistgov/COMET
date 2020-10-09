@@ -53,9 +53,12 @@ calc.metrics<-function(dat,var_func,smooth_df,plot.bool=TRUE,factor_to_compare=N
              cell_type,
              concentration_type)%>%
     do(prop_fit=prop_fitter(.,var_func),smooth_fit=smooth_fitter(.,var_func,smooth_df))
-  mets<-fits%>%
+    mets<-fits%>%
     do(mets=metrics(.$prop_fit,.$smooth_fit))
-  met.names<-unique(names(unlist(mets)))%>%gsub("mets.","",.)%>%gsub(".1","",.)
+  
+  met.names<- unique(names(unlist(mets))) %>% 
+    gsub("mets.","",.)%>%gsub(".1","",.)
+  
   mets<-as.data.frame(matrix(unlist(mets),nrow=nrow(fits),byrow=TRUE))
   names(mets)<-met.names
   mets<-data.frame(
@@ -87,11 +90,13 @@ calc.metrics<-function(dat,var_func,smooth_df,plot.bool=TRUE,factor_to_compare=N
       data.for.plot$comp_level<-rep(mets[,factor_to_compare],3*table(rep_dat[,factor_to_compare]))
       line_parms$comp_level<-rep(mets[,factor_to_compare],3)
     } 
+    
     overview.plot<-ggplot(data=data.for.plot,aes(y=y,x=dilution_fraction))+
       geom_abline(data=line_parms,aes(slope=slope,intercept=0))+
       ylab("")+
       xlab("Dilution Fraction")+
       theme_bw()
+    
     dat$comp_fac<-dat[,factor_to_compare]
     
     overview.plot2<-ggplot(dat,aes(x=time_elapsed,y=cell_conc-starting_soln_conc*target_dilution_fraction,

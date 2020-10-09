@@ -1,6 +1,8 @@
 downloadUI <- function(id) {
   ns <- NS(id)
-  downloadButton(ns('downloadData'), 'Download Results')
+  tagList(
+    downloadButton(ns('downloadData'), 'Download Results')
+  )
 }
 
 downloadServer <- function(id, input_file, Metrics) {
@@ -10,12 +12,13 @@ downloadServer <- function(id, input_file, Metrics) {
     function(input,output,session) {
       output$downloadData <- downloadHandler(
         filename = function() {
-          file.name<-gsub(".csv","",input_file$name)%>%
+          file.name<-gsub(".csv","",input_file()$name)%>%
             gsub(".txt","",.)
           paste0(file.name, "_Analysis_Results.csv")
         },
+        
         content = function(con) {
-          cat(paste("User specified parameters: \n","File name:",input_file$name,"\n",
+          cat(paste("User specified parameters: \n","File name:",input_file()$name,"\n",
                     "var_func<-function(mn)",body(Metrics()$var_func),"\n",
                     "Flexible model was polynomial of order",Metrics()$smooth_df,"\n",
                     "Number of bootstrap iterations conducted:",Metrics()$n_boot,"\n",

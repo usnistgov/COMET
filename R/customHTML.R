@@ -4,11 +4,6 @@ customHTML_head <- function() {
     '<style>
       .nist-print-header {
         background-color: black;
-        color: white;
-      }
-      
-      body {
-        background-color:AliceBlue;
       }
       
       .nist-print-header__logo{
@@ -62,9 +57,13 @@ customHTML_foot <- function() {
       margin-top:30px;
     }
     
-    a {
+    .nist-footer__contact {
       color:white;
-      text-decoration: underline;
+    }
+    
+    .nist-footer a{
+      color:white;
+      text-decoration:underline;
     }
     
     .grid-container{

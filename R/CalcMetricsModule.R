@@ -19,30 +19,36 @@ metricsUI <- function(id) {
     actionButton(ns("help_var_func"), "Help"),
     #hr(),
 
-    
-    numericInput(ns("smooth_df"), label = h3("Order of smoothing polynomial"), value = 4),
+    numericInput(ns("smooth_df"), label = h3("Order of smoothing polynomial"),value=4),
     #hr(),
     
-    numericInput(ns("n_boot"), label = h3("Number of Bootstrap Iterations"), value = 15),
+    selectInput(ns("n_boot"), label = h3("Number of Bootstrap Iterations"), 
+                choices = c('25 (test run)','1000 (final run)','custom'), selected = "25 (test run)"),
+    conditionalPanel(
+      condition = "input.n_boot == 'custom'",
+      sliderInput(ns('n_boot_cus'),label='Number of Bootstrap Iterations',
+                  min=0,max=5000,value=500,step=50), 
+      ns = ns
+    ),
     actionButton(ns("help_n_boot"), "Help"),
     
-    selectInput(ns("conf_lev"), label = h3("Confidence Level"), 
-                choices = list("95%" = .95, "90%" = .9, "80%" = .8), 
-                selected = .95),
+    sliderInput(ns("conf_lev"), label = h3("Confidence Level"), 
+                min=.80,max=.99,step = .01,
+                value = .95),
     actionButton(ns("help_conf_lev"), "Help"),
     
     #hr(),
     checkboxGroupInput(ns("perf.metrics"), label = h3("Performance Metrics"), 
                        choices = list("R-squared"=1,
-                                      "Scaled Sum of Squares"=2,
-                                      "Sum of Squares"=3,
-                                      "Scaled Absolute Value"=4,
-                                      "Absolute Value"=5,
+                                      "Mean Sq Error"=2,
+                                      "Mean Abs Error"=3,
+                                      "Scaled Mean Sq Error"=4,
+                                      "Scaled Mean Abs Error"=5,
                                       "Smoothed R-squared"=6,
-                                      "Smoothed Scaled Sum of Squares"=7,
-                                      "Smoothed Sum of Squares"=8,
-                                      "Smoothed Scaled Absolute Value"=9,
-                                      "Smoothed Absolute Value" = 10),
+                                      "Smoothed Mean Sq Error"=7,
+                                      "Smoothed Scaled Mean Sq Error"=8,
+                                      "Smoothed Mean Abs Error" = 9,
+                                      "Smoothed Scaled Mean Abs Value"=10),
                        selected = 1),
     actionButton(ns("goButton"), "Run Analysis")
   )
@@ -57,16 +63,19 @@ metricsServer <- function(id,input_file) {
       
       observeEvent(input$help_na_lab, {
         showModal(modalDialog(
-          title = "Help",
-          paste("Please type how missing values are denoted in the input file.",
+          title = "Help: Missing value expression",
+          paste("Please type how missing values are written in the input file.",
                 "(If there are no missing values, you may leave the input as is.)")
         ))
       })
       
       observeEvent(input$help_var_func, {
         showModal(modalDialog(
-          title = "Help",
-          paste("")
+          title = "Help: Variance assumption",
+          paste("Indicate the assumption regarding the variance of the measurements to be used for the modelling.",
+                "Options: (1) variance is constant across all dilution fractions,",
+                "(2) variance is proportional to the dilution fraction,",
+                "or (3) variance is proportional to your custom function of the mean (mn).")
         ))
       })
       
@@ -79,40 +88,55 @@ metricsServer <- function(id,input_file) {
       
       observeEvent(input$help_n_boot, {
         showModal(modalDialog(
-          title = "Help",
-          "Help text"
+          title = "Help: Number of bootstrap iterations",
+          paste("Indicate the number of bootstrap samples to be run.",
+                "These samples will be used to calculate confidence intervals",
+                "of the computed metrics.",
+                "A larger sample yields more accurate intervals,",
+                "but takes longer to run.",
+                "We recommend using a smaller number (e.g. 25) as a test run",
+                "and then a larger sample size (e.g. 1000) for the final run.")
         ))
       })
       
       observeEvent(input$help_conf_lev, {
         showModal(modalDialog(
-          title = "Help",
-          "Help text"
+          title = "Help: Confidence level",
+          paste("Please enter the desired level of confidence for the calculated metrics.",
+                "A .95 level of confidence means that, roughly, you are '95% confident' that the",
+                "true metric lies within the presented 95% confidence interval.",
+                "A larger confidence level will necessarily yield wider intervals.")
         ))
       })
       
       Metrics<-eventReactive(input$goButton, {
         
-        if(input$var_func == 'proportional to mean') {
-          function_body = 'mn'
         
-        } else if(input$var_func == 'constant') {
-          function_body = '1'
-          
-        } else {
-          function_body = input$custom_var_func
-          
-        }
+        function_body <- switch(input$var_func,
+                                'proportional to mean' = 'mn',
+                                'constant' = '1',
+                                'custom' = input$cus_var_func)
         
         eval(parse(text=paste("var_func<-function(mn)",function_body))) 
         
         smooth_df<-input$smooth_df
-        n_boot<-input$n_boot
-        if(n_boot<20)n_boot<-0
-        inFile <- input_file # input$file1
+        
+        n_boot <- switch(input$n_boot,
+                         '25 (test run)' = 25,
+                         '1000 (final run)' = 1000,
+                         'custom' = input$n_boot_cus)
+        
+        if(n_boot<20) {
+          n_boot<- 0
+        } 
+        
+        inFile <- input_file() # input$file1
         conf_lev<-as.numeric(input$conf_lev)
-        if (is.null(inFile))
+        
+        if (is.null(inFile)) {
           return(NULL)
+        }
+        
         if(!is.null(inFile)){
           dat<-read.csv(inFile$datapath,na.strings=input$na_lab)
           dat$cell_conc<-as.numeric(as.character(dat$cell_conc))
@@ -137,7 +161,7 @@ metricsServer <- function(id,input_file) {
         if(n_comparison_facs==1) factor_to_compare<-grouping_factors[n_levels>1]
         
         #### If there's no comparison factor, set to NULL 
-        if(n_comparison_facs==0) factor_to_compare<-NULL
+        if(n_comparison_facs==0) factor_to_compare<-'counting_method'
         
         #### If there's more than one comparison factor, shut off plots
         metrics<-calc.metrics(dat,var_func,smooth_df,plot.bool=n_comparison_facs<2,factor_to_compare)
@@ -160,23 +184,37 @@ metricsServer <- function(id,input_file) {
           metrics$metrics$lower<-apply(boot.metrics,1,quantile,(1-conf_lev)/2)
         }
         metrics$Title<-metrics$compare<-metrics$means_plot<-metrics$metrics.plot<-NULL
-        if(n_comparison_facs==0) metrics$Title<-unique(apply(dat[,grouping_factors[-1]],1,paste,collapse=" "))
-        if(n_comparison_facs==1){
+        
+        if(n_comparison_facs==0) {
+          metrics$Title<-unique(apply(dat[,grouping_factors[-1]],1,paste,collapse=" "))
+        }
+        
+        if(n_comparison_facs %in% c(0,1)){
           metrics$Title<-unique(apply(dat[,grouping_factors[-1][grouping_factors[-1]!=factor_to_compare]],1,paste,collapse=" "))
           metrics$metrics$comp_factor<-metrics$metrics[,factor_to_compare]
-          plot.metrics<- metrics$metrics[ metrics$metrics$Metric%in%c(
-            "R.squared","Scaled.Sum.of.Squares",
-            "Sum.of.Squares","Scaled.Absolute.Value",
-            "Absolute.Value","Smoothed.R.squared","Smoothed.Scaled.Sum.of.Squares",
-            "Smoothed.Sum.of.Squares","Smoothed.Scaled.Abs..Value",
-            "Smoothed.Absolute.Value"),]
+
+          metrics_to_plot = c("R.squared",
+                              "Mean.Squared.Error",
+                              "Mean.Absolute.Error",
+                              "Scaled.Mean.Squared.Error",
+                              "Scaled.Mean.Absolute.Error",
+                              "Smoothed.R-squared",
+                              "Smoothed.Mean.Squared.Error",
+                              "Smoothed.Scaled.Mean.Squared.Error",
+                              "Smoothed.Mean.Absolute.Error",
+                              "Smoothed.Scaled.Mean.Absolute.Error")
+          
+          metrics$metrics_to_plot = metrics_to_plot[as.numeric(input$perf.metrics)]
+          plot.metrics<- metrics$metrics[ metrics$metrics$Metric %in% metrics$metrics_to_plot,]
+          
           metrics$metrics.plot<-ggplot(plot.metrics,aes(x=comp_factor,y=Value,color=comp_factor))+
             facet_wrap(~Metric,scales="free_y")+
             geom_point(size=2)+
             ylab("")+xlab("")+        
             theme_bw()+ 
             guides(color=FALSE)+
-            theme(axis.text.x = element_text(angle = 90, hjust = 1,vjust=.5))
+            theme(axis.text.x = element_text(angle = 90, hjust = 1,vjust=.5)) +
+            theme(aspect.ratio=1)
           cv<- filter(metrics$metrics,substr(Metric,1,4)=="pool")
           cv$Metric<-as.numeric(gsub("pooled_cv_","",cv$Metric))
           metrics$cv_plot<-ggplot(cv,aes(y=Value,fill=comp_factor,x=Metric))+
@@ -194,6 +232,7 @@ metricsServer <- function(id,input_file) {
             xlab("Dilution Fraction")+
             guides(fill=guide_legend(title = factor_to_compare))+
             theme_bw()
+          
           if(n_boot>20){
             metrics$metrics.plot<-metrics$metrics.plot+
               geom_pointrange(data=plot.metrics,
@@ -208,23 +247,28 @@ metricsServer <- function(id,input_file) {
                             position="dodge")
             boot.metrics<-cbind(metrics$metrics$Value,boot.metrics)
             n.met<-nrow(boot.metrics)/n_compare
-            metrics$compare<-data.frame(Metric=NULL,level1=NULL,level2=NULL,Ratio=NULL,lower=NULL,upper=NULL)
-            for(i in 1:(n_compare-1)){
-              for(j in (i+1):n_compare){
-                t.comp<-boot.metrics[(0:(n.met-1))*n_compare+i,]/
-                  boot.metrics[(0:(n.met-1))*n_compare+j,]
-                if(any(rowMeans(is.na(t.comp))>.1)) stop("Bootstrap producing many NA values")
-                t.comp<-data.frame(metrics$metrics$Metric[(0:(n.met-1))*n_compare+i],
-                                   level1=metrics$metrics$comp_factor[i],  ### First level in comparison
-                                   level2=metrics$metrics$comp_factor[j],  ### divided by second level in comparison
-                                   Ratio=t.comp[,1],
-                                   t(apply(t.comp[,-1],1,quantile,c(.05,.95),na.rm=TRUE)))
-                names(t.comp)<-c("Metric","level1","level2","Ratio","lower","upper")
-                metrics$compare<-bind_rows(metrics$compare,t.comp)
+            
+            if(n_comparison_facs == 1){ 
+              metrics$compare<-data.frame(Metric=NULL,level1=NULL,level2=NULL,Ratio=NULL,lower=NULL,upper=NULL)
+              for(i in 1:(n_compare-1)){
+                for(j in (i+1):n_compare){
+                  t.comp<-boot.metrics[(0:(n.met-1))*n_compare+i,]/boot.metrics[(0:(n.met-1))*n_compare+j,]
+                  if(any(rowMeans(is.na(t.comp))>.1)) stop("Bootstrap producing many NA values")
+                  t.comp<-data.frame(metrics$metrics$Metric[(0:(n.met-1))*n_compare+i],
+                                     level1=metrics$metrics$comp_factor[i],  ### First level in comparison
+                                     level2=metrics$metrics$comp_factor[j],  ### divided by second level in comparison
+                                     Ratio=t.comp[,1],
+                                     t(apply(t.comp[,-1],1,quantile,c(.05,.95),na.rm=TRUE)))
+                  names(t.comp)<-c("Metric","level1","level2","Ratio","lower","upper")
+                  metrics$compare<-bind_rows(metrics$compare,t.comp)
+                }
               }
             }
+            
+            
           }
         }
+        
         metrics$dat<-dat
         metrics$smooth_df<-smooth_df
         metrics$n_boot<-n_boot
