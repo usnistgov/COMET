@@ -52,23 +52,7 @@ calc.metrics<-function(dat,var_func,smooth_df,plot.bool=TRUE,factor_to_compare=N
   ### Function computing performance metrics
   grouping_factors<-c("counting_method","cell_type","concentration_type")
   
-  
-  rep_dat2 <- dat %>% 
-    group_by(counting_method,
-             cell_type,
-             concentration_type,
-             stock_solution,
-             target_dilution_fraction,
-             measured_dilution_fraction,
-             stock_extraction,
-             rep_obsv) %>%
-    summarise(var_conc=var(cell_conc,na.rm=TRUE),   ### variance of replicate cell concentration measurements
-              mean_conc=mean(cell_conc,na.rm=TRUE), ### mean cell concentration
-              n_conc=sum(!is.na(cell_conc))) 
-  
-  rep_dat2 <- rep_dat2[!(is.na(rep_dat2$mean_conc)),]
-  
-  fits <- rep_dat2 %>%
+  fits <- rep_dat %>%
     group_by(counting_method,
              cell_type,
              concentration_type)%>%
@@ -111,7 +95,7 @@ calc.metrics<-function(dat,var_func,smooth_df,plot.bool=TRUE,factor_to_compare=N
                            response_type=rep(c("Mean Conc.","Raw Residuals","Smoothed Residuals"),each=nrow(mets)))
     
     if(!is.null(factor_to_compare)){
-      data.for.plot$comp_level<-rep(mets[,factor_to_compare],3*table(rep_dat2[,factor_to_compare]))
+      data.for.plot$comp_level<-rep(mets[,factor_to_compare],3*table(rep_dat[,factor_to_compare]))
       line_parms$comp_level<-rep(mets[,factor_to_compare],3)
     } 
     

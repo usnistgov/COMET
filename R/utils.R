@@ -49,15 +49,15 @@ metrics<-function(prop_fit,smooth_fit){
   f1<-lm(s.fit~p.fit-1,w=w)
   c('Prop.Const'=prop_fit$coefficients,
     'R.squared'=summary(prop_fit)$r.squared,
-    'Scaled.Mean.Squared.Error'=mean((p.res/p.fit)^2),
-    'Mean.Squared.Error'=mean((p.res)^2),
-    'Scaled.Mean.Absolute.Error'=mean(abs(p.res/p.fit)),
-    'Mean.Absolute.Error'=mean(abs(p.res)),
+    'Scaled.Sum.Squared.Error'=sum((p.res/p.fit)^2),
+    'Sum.Squared.Error'=sum((p.res)^2),
+    'Scaled.Sum.Absolute.Error'=sum(abs(p.res/p.fit)),
+    'Sum.Absolute.Error'=sum(abs(p.res)),
     'Smoothed.R.squared'=summary(f1)$r.squared,
-    'Smoothed.Scaled.Mean.Squared.Error'=mean((s.res/p.fit)^2),
-    'Smoothed.Mean.Squared.Error'=mean((s.res)^2), #/p.fit[1]^2,
-    'Smoothed.Scaled.Mean.Absolute.Error'=mean(abs(s.res/p.fit)),
-    'Smoothed.Mean.Absolute.Error'=mean(abs(s.res)))#/p.fit[1])
+    'Smoothed.Scaled.Sum.Squared.Error'=sum((s.res/p.fit)^2),
+    'Smoothed.Sum.Squared.Error'=sum((s.res)^2), #/p.fit[1]^2,
+    'Smoothed.Scaled.Sum.Absolute.Error'=sum(abs(s.res/p.fit)),
+    'Smoothed.Sum.Absolute.Error'=sum(abs(s.res)))#/p.fit[1])
 }
 
 nonpar.boot.simple<-function(dat,i) {

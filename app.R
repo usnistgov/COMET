@@ -12,6 +12,8 @@ source('R/tabPanelModule.R')
 source('R/tabPanelModule2.R')
 source('R/customHTML.R')
 
+options(dplyr.summarise.inform = FALSE)
+
 ui<-shinyUI(fluidPage(
   
   tags$head(

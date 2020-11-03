@@ -144,10 +144,11 @@ tp3Server <- function(id, input_file, Metrics){
       
       
       output$table3 <- DT::renderDataTable({
+        # number replicate samples
         outdf = Metrics()$dat %>% 
           select(counting_method,target_dilution_fraction,replicate_sample) %>%
           group_by(counting_method,target_dilution_fraction) %>%
-          summarise(count=length(replicate_sample)) %>%
+          summarise(count=length(unique(replicate_sample) )) %>%
           tidyr::pivot_wider(names_from=counting_method,values_from=count)
         
         colnames(outdf)[1]='Target DF'
@@ -156,6 +157,8 @@ tp3Server <- function(id, input_file, Metrics){
       
       
       output$table4 <- DT::renderDataTable({
+        # number replicate obs
+
         outdf = Metrics()$dat %>% 
           select(counting_method,target_dilution_fraction,replicate_sample) %>%
           group_by(counting_method,target_dilution_fraction,replicate_sample) %>%

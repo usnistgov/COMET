@@ -52,15 +52,15 @@ metricsUI <- function(id) {
 
     checkboxGroupInput(ns("perf.metrics"), label = h3("Performance Metrics"), 
                        choices = list("R-squared"=1,
-                                      "Mean Sq Error"=2,
-                                      "Mean Abs Error"=3,
-                                      "Scaled Mean Sq Error"=4,
-                                      "Scaled Mean Abs Error"=5,
+                                      "Sum Sq Error"=2,
+                                      "Sum Abs Error"=3,
+                                      "Scaled Sum Sq Error"=4,
+                                      "Scaled Sum Abs Error"=5,
                                       "Smoothed R-squared"=6,
-                                      "Smoothed Mean Sq Error"=7,
-                                      "Smoothed Scaled Mean Sq Error"=8,
-                                      "Smoothed Mean Abs Error" = 9,
-                                      "Smoothed Scaled Mean Abs Error"=10),
+                                      "Smoothed Sum Sq Error"=7,
+                                      "Smoothed Scaled Sum Sq Error"=8,
+                                      "Smoothed Sum Abs Error" = 9,
+                                      "Smoothed Scaled Sum Abs Error"=10),
                        selected = c(1,5,10)),
     actionButton(ns("goButton"), "Run Analysis")
   )
@@ -228,15 +228,15 @@ metricsServer <- function(id,input_file) {
           metrics$metrics$comp_factor<-metrics$metrics[,factor_to_compare]
 
           metrics_to_plot = c("R.squared",
-                              "Mean.Squared.Error",
-                              "Mean.Absolute.Error",
-                              "Scaled.Mean.Squared.Error",
-                              "Scaled.Mean.Absolute.Error",
+                              "Sum.Squared.Error",
+                              "Sum.Absolute.Error",
+                              "Scaled.Sum.Squared.Error",
+                              "Scaled.Sum.Absolute.Error",
                               "Smoothed.R-squared",
-                              "Smoothed.Mean.Squared.Error",
-                              "Smoothed.Scaled.Mean.Squared.Error",
-                              "Smoothed.Mean.Absolute.Error",
-                              "Smoothed.Scaled.Mean.Absolute.Error")
+                              "Smoothed.Sum.Squared.Error",
+                              "Smoothed.Scaled.Sum.Squared.Error",
+                              "Smoothed.Sum.Absolute.Error",
+                              "Smoothed.Scaled.Sum.Absolute.Error")
           
           metrics$metrics_to_plot = metrics_to_plot[as.numeric(input$perf.metrics)]
           plot.metrics<- metrics$metrics[ metrics$metrics$Metric %in% metrics$metrics_to_plot,]
