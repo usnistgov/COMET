@@ -7,7 +7,7 @@ metricsUI <- function(id) {
   tagList(
     textInput(ns("na_lab"), label = h3("How are missing values denoted in the file?"), value = "NA"),
     actionButton(ns("help_na_lab"), "Help"),
-    #hr(),
+    hr(),
     
     selectInput(ns("var_func"), label = h3("Variance is ..."),
                 choices = c('proportional to mean','constant','custom'), selected = "proportional to mean"),
@@ -17,27 +17,39 @@ metricsUI <- function(id) {
       ns = ns
     ),
     actionButton(ns("help_var_func"), "Help"),
-    #hr(),
+    hr(),
 
-    numericInput(ns("smooth_df"), label = h3("Order of smoothing polynomial"),value=4),
-    #hr(),
+
+    selectInput(ns("smooth_df"), label = h3("Order of smoothing polynomial"),
+                choices=c('Default (recommended)','Custom'), selected = 'Default (recommended)'),
+    conditionalPanel(
+      condition = "input.smooth_df == 'Custom'",
+      numericInput(ns('smooth_df_cus'),label='Order of smoothing polynomial',value='5',min=2,max=NA,step=1), 
+      ns = ns
+    ),
+    actionButton(ns("help_smooth_df"), "Help"),
+    hr(),
+    
     
     selectInput(ns("n_boot"), label = h3("Number of Bootstrap Iterations"), 
                 choices = c('25 (test run)','1000 (final run)','custom'), selected = "25 (test run)"),
     conditionalPanel(
       condition = "input.n_boot == 'custom'",
       sliderInput(ns('n_boot_cus'),label='Number of Bootstrap Iterations',
-                  min=0,max=5000,value=500,step=50), 
+                  min=50,max=5000,value=200,step=50), 
       ns = ns
     ),
     actionButton(ns("help_n_boot"), "Help"),
+    hr(),
+    
     
     sliderInput(ns("conf_lev"), label = h3("Confidence Level"), 
                 min=.80,max=.99,step = .01,
                 value = .95),
     actionButton(ns("help_conf_lev"), "Help"),
+    hr(),
     
-    #hr(),
+
     checkboxGroupInput(ns("perf.metrics"), label = h3("Performance Metrics"), 
                        choices = list("R-squared"=1,
                                       "Mean Sq Error"=2,
@@ -48,8 +60,8 @@ metricsUI <- function(id) {
                                       "Smoothed Mean Sq Error"=7,
                                       "Smoothed Scaled Mean Sq Error"=8,
                                       "Smoothed Mean Abs Error" = 9,
-                                      "Smoothed Scaled Mean Abs Value"=10),
-                       selected = 1),
+                                      "Smoothed Scaled Mean Abs Error"=10),
+                       selected = c(1,5,10)),
     actionButton(ns("goButton"), "Run Analysis")
   )
 
@@ -82,7 +94,9 @@ metricsServer <- function(id,input_file) {
       observeEvent(input$help_smooth_df, {
         showModal(modalDialog(
           title = "Help",
-          "Help text"
+          "Input the order of the polynomial regression function used to calculated
+          the smoothed residuals. The default is set to be the number of target 
+          dilution fractions minus one. "
         ))
       })
       
@@ -112,14 +126,13 @@ metricsServer <- function(id,input_file) {
       Metrics<-eventReactive(input$goButton, {
         
         
+        # note: if 'mn' and '1' are changed, need to update stat analysis tab
         function_body <- switch(input$var_func,
                                 'proportional to mean' = 'mn',
                                 'constant' = '1',
                                 'custom' = input$cus_var_func)
         
         eval(parse(text=paste("var_func<-function(mn)",function_body))) 
-        
-        smooth_df<-input$smooth_df
         
         n_boot <- switch(input$n_boot,
                          '25 (test run)' = 25,
@@ -139,10 +152,12 @@ metricsServer <- function(id,input_file) {
         
         if(!is.null(inFile)){
           dat<-read.csv(inFile$datapath,na.strings=input$na_lab)
+          dat <- dat[dat$counting_method != '',]
           dat$cell_conc<-as.numeric(as.character(dat$cell_conc))
           dat$target_dilution_fraction<-as.numeric(as.character(dat$target_dilution_fraction))
           dat$measured_dilution_fraction<-as.numeric(as.character(dat$measured_dilution_fraction))
         }
+        
         dat<-dat%>%arrange(counting_method,
                            cell_type,
                            concentration_type,
@@ -150,6 +165,15 @@ metricsServer <- function(id,input_file) {
                            target_dilution_fraction,
                            measured_dilution_fraction,
                            stock_extraction)
+        
+        
+        if(input$smooth_df == 'Default (recommended)') {
+          smooth_df <- length(unique(dat$target_dilution_fraction)) - 1
+          print(smooth_df)
+        } else {
+          smooth_df <- as.numeric(input$smooth_df_cus)
+        }
+        
         
         #### How many comparison factors are there in the dataset?
         grouping_factors<-c("counting_method","cell_type","concentration_type")
@@ -166,28 +190,38 @@ metricsServer <- function(id,input_file) {
         #### If there's more than one comparison factor, shut off plots
         metrics<-calc.metrics(dat,var_func,smooth_df,plot.bool=n_comparison_facs<2,factor_to_compare)
         metrics$metrics$upper<-metrics$metrics$lower<-NULL
-        if(n_boot>20){
-          boot.metrics<-matrix(NA,nrow(metrics$metrics),n_boot)
-          for(i in 1:n_boot){
-            boot.ind<-nonpar.boot(dat,i)
-            boot.dat<-dat[boot.ind[,1],]
-            boot.dat$cell_conc<-dat$cell_conc[boot.ind[,2]]
-            boot.dat$cell_conc[is.na(dat$cell_conc)]<-NA
-            boot.dat$stock_extraction<-dat$stock_extraction
-            boot.metrics[,i]<-unlist(calc.metrics(boot.dat,
-                                                  var_func,
-                                                  smooth_df,
-                                                  plot.bool=FALSE,
-                                                  factor_to_compare)$metrics$Value)
+        
+        withProgress(message = "Running Bootstrap Iterations", value=0, {
+          if(n_boot>20){
+            boot.metrics<-matrix(NA,nrow(metrics$metrics),n_boot)
+            for(i in 1:n_boot){
+              boot.ind <- nonpar.boot(dat,i)
+              boot.dat <- dat[boot.ind[,1],]
+              boot.dat$cell_conc <- dat$cell_conc[boot.ind[,2]]
+              boot.dat$cell_conc[is.na(dat$cell_conc)] <- NA
+              boot.dat$stock_extraction<-dat$stock_extraction
+              boot.metrics[,i]<-unlist(calc.metrics(boot.dat,
+                                                    var_func,
+                                                    smooth_df,
+                                                    plot.bool=FALSE,
+                                                    factor_to_compare)$metrics$Value)
+              
+              incProgress(1/n_boot, detail = paste("Sample",i,"of",n_boot))
+            }
+  
+            metrics$metrics$upper<-apply(boot.metrics,1,quantile,(1+conf_lev)/2,na.rm=TRUE)
+            metrics$metrics$lower<-apply(boot.metrics,1,quantile,(1-conf_lev)/2,na.rm=TRUE)
+            if(any(metrics$metrics$lower == 0) | any(metrics$metrics$upper == 0)) {
+              #browser()
+            }
           }
-          metrics$metrics$upper<-apply(boot.metrics,1,quantile,(1+conf_lev)/2)
-          metrics$metrics$lower<-apply(boot.metrics,1,quantile,(1-conf_lev)/2)
-        }
+        })
         metrics$Title<-metrics$compare<-metrics$means_plot<-metrics$metrics.plot<-NULL
         
         if(n_comparison_facs==0) {
           metrics$Title<-unique(apply(dat[,grouping_factors[-1]],1,paste,collapse=" "))
         }
+        
         
         if(n_comparison_facs %in% c(0,1)){
           metrics$Title<-unique(apply(dat[,grouping_factors[-1][grouping_factors[-1]!=factor_to_compare]],1,paste,collapse=" "))
@@ -245,15 +279,22 @@ metricsServer <- function(id,input_file) {
               geom_errorbar(data=cv,
                             aes(x=Metric,ymax=upper,ymin=lower),
                             position="dodge")
+            
+            # first column is value, next n_boot columns are samples
             boot.metrics<-cbind(metrics$metrics$Value,boot.metrics)
             n.met<-nrow(boot.metrics)/n_compare
+            
+
             
             if(n_comparison_facs == 1){ 
               metrics$compare<-data.frame(Metric=NULL,level1=NULL,level2=NULL,Ratio=NULL,lower=NULL,upper=NULL)
               for(i in 1:(n_compare-1)){
                 for(j in (i+1):n_compare){
-                  t.comp<-boot.metrics[(0:(n.met-1))*n_compare+i,]/boot.metrics[(0:(n.met-1))*n_compare+j,]
-                  if(any(rowMeans(is.na(t.comp))>.1)) stop("Bootstrap producing many NA values")
+                  t.comp<-boot.metrics[(0:(n.met-1))*n_compare+i,]/(boot.metrics[(0:(n.met-1))*n_compare+j,] + .0000001)
+                  if(any(rowMeans(is.na(t.comp))>.1)) {
+
+                    print("Bootstrap producing NA values")
+                  } 
                   t.comp<-data.frame(metrics$metrics$Metric[(0:(n.met-1))*n_compare+i],
                                      level1=metrics$metrics$comp_factor[i],  ### First level in comparison
                                      level2=metrics$metrics$comp_factor[j],  ### divided by second level in comparison
@@ -268,6 +309,8 @@ metricsServer <- function(id,input_file) {
             
           }
         }
+        
+        #browser()
         
         metrics$dat<-dat
         metrics$smooth_df<-smooth_df

@@ -13,19 +13,30 @@ smooth_fitter<-function(data,var_func,smooth_df){
   x<-unlist(data$measured_dilution_fraction)
   x[is.na(x)]<-unlist(data$target_dilution_fraction)[is.na(x)]
   #  x<-x[!is.na(y)]
-  n<-unlist(data$n_conc)#[!is.na(y)]
+  nn<-unlist(data$n_conc)#[!is.na(y)]
   #    y<-y[!is.na(y)]
   if(is.null(smooth_df))smooth_df<-length(unique(data$target_dilution_fraction))-1
   fit.dat2<-data.frame(y,poly(x,smooth_df,raw=TRUE))
-  smooth_fit<-lm(y~.,w=n/var_func(x),data=fit.dat2)
-  old.means<-0
-  new.means<-predict(smooth_fit)
-  while(any(abs(old.means/new.means-1)>.0001)){
-    t.w<-n/var_func(new.means)
-    smooth_fit<-lm(y~.,w=t.w,data=fit.dat2)
-    old.means<-new.means
-    new.means<-predict(smooth_fit)
-  }
+  smooth_fit<-lm(y~.,w=nn/var_func(x),data=fit.dat2)
+  # old.means<-0
+  # new.means<-predict(smooth_fit)
+  # #browser()
+  # count = 1
+  # while(any(abs(old.means/new.means-1)>.0001) && count < 100){
+  #   t.w<-nn/var_func(new.means)
+  #   t.w[t.w < 0] <- 0
+  #   
+  #   if(count == 99 ) {
+  #     #browser()
+  #   }
+  #     
+  #     
+  #   smooth_fit<-lm(y~.,w=t.w,data=fit.dat2)
+  #   old.means<-new.means
+  #   new.means<-predict(smooth_fit)
+  #   count = count + 1
+  #   
+  # }
   smooth_fit
 }
 
@@ -39,14 +50,51 @@ metrics<-function(prop_fit,smooth_fit){
   c('Prop.Const'=prop_fit$coefficients,
     'R.squared'=summary(prop_fit)$r.squared,
     'Scaled.Mean.Squared.Error'=mean((p.res/p.fit)^2),
-    'Mean.Squared.Error'=sum((p.res)^2),
+    'Mean.Squared.Error'=mean((p.res)^2),
     'Scaled.Mean.Absolute.Error'=mean(abs(p.res/p.fit)),
     'Mean.Absolute.Error'=mean(abs(p.res)),
     'Smoothed.R.squared'=summary(f1)$r.squared,
     'Smoothed.Scaled.Mean.Squared.Error'=mean((s.res/p.fit)^2),
-    'Smoothed.Mean.Squared.Error'=mean((s.res)^2)/p.fit[1]^2,
+    'Smoothed.Mean.Squared.Error'=mean((s.res)^2), #/p.fit[1]^2,
     'Smoothed.Scaled.Mean.Absolute.Error'=mean(abs(s.res/p.fit)),
-    'Smoothed.Mean.Absolute.Error'=mean(abs(s.res))/p.fit[1])
+    'Smoothed.Mean.Absolute.Error'=mean(abs(s.res)))#/p.fit[1])
+}
+
+nonpar.boot.simple<-function(dat,i) {
+  ### Conduct a nonparametric bootstrap to characterize the confidence in these results
+  grp.ind<-as.numeric(as.factor(paste(dat$counting_method,
+                                      dat$cell_type,
+                                      dat$concentration_type)))
+  boot.ind<-NULL
+  for(g in 1:max(grp.ind)){
+    set.seed(i)
+    for(t in unique(dat$target_dilution_fraction[grp.ind==g])){
+      
+      inds.pool = which(dat$target_dilution_fraction==t&grp.ind==g)
+      samps.boot<-sample(inds.pool,length(inds.pool),replace=TRUE)
+      boot.ind = c(boot.ind,samps.boot)
+      
+    }
+  }
+  na_obs<-which(is.na(dat$cell_conc[boot.ind]))
+  
+  boot.ind2<-boot.ind 
+  
+  if(length(na_obs)>0){
+    for(j in na_obs){
+      good<-which(dat$target_dilution_fraction==dat$target_dilution_fraction[j]&
+                    grp.ind==grp.ind[j]&
+                    !is.na(dat$cell_conc))
+      if(length(good)<1) stop(paste("No non-missing cell concentration values in",
+                                    paste("Counting Method",dat$counting_method[j],
+                                          ", Cell Type",dat$cell_type[j],
+                                          ", Concetration Type",dat$concentration_type[j],
+                                          ", Target Dilution Fraction",dat$target_dilution_fraction[j])))
+      else boot.ind2[j]<-sample(good,1)
+    }
+  }
+  cbind(boot.ind,boot.ind2)
+  
 }
 
 
@@ -59,8 +107,10 @@ nonpar.boot<-function(dat,i){
   for(g in 1:max(grp.ind)){
     set.seed(i)
     for(t in unique(dat$target_dilution_fraction[grp.ind==g])){
+      
       samps.pool<-unique(dat$random_sample_number[dat$target_dilution_fraction==t&grp.ind==g])
       samps.boot<-sample(samps.pool,length(samps.pool),replace=TRUE)
+      
       for(s in samps.boot){
         obs.pool<-which(dat$random_sample_number==s&grp.ind==g)
         t.samp<-sample(obs.pool,length(obs.pool),replace=TRUE)
@@ -69,7 +119,9 @@ nonpar.boot<-function(dat,i){
     }
   }
   na_obs<-which(is.na(dat$cell_conc[boot.ind]))
-  boot.ind2<-boot.ind
+  
+  boot.ind2<-boot.ind 
+  
   if(length(na_obs)>0){
     for(j in na_obs){
       good<-which(dat$target_dilution_fraction==dat$target_dilution_fraction[j]&
