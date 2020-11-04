@@ -3,8 +3,13 @@
 tp1UI <- function(id) {
   ns <- NS(id)
   tagList(
-    h2(textOutput(ns("Title")) ), 
+    br(),
     plotOutput(ns("Data_Plot"), height = "600px"),
+    br(),
+    br(),
+    plotOutput(ns("residual_plot"), height = '600px'),
+    br(),
+    br(),
     plotOutput(ns("Data_Plot2"), height = "600px")
   )
 }
@@ -31,12 +36,21 @@ tp1Server <- function(id, input_file, Metrics) {
         print(Metrics()$overview.plot)
       })
       
+      output$residual_plot <- renderPlot({
+        if(is.null(input_file())) {
+          return(NULL)
+        }
+        print(Metrics()$residual.plot)
+      })
+      
       output$Data_Plot2 <- renderPlot({
         if (is.null(input_file() )) {
           return(NULL)
         }
         print(Metrics()$overview.plot2)
       })
+      
+      
     }
   )
 }

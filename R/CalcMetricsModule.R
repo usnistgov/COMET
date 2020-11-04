@@ -219,12 +219,14 @@ metricsServer <- function(id,input_file) {
         metrics$Title<-metrics$compare<-metrics$means_plot<-metrics$metrics.plot<-NULL
         
         if(n_comparison_facs==0) {
-          metrics$Title<-unique(apply(dat[,grouping_factors[-1]],1,paste,collapse=" "))
+          #metrics$Title<-unique(apply(dat[,grouping_factors[-1]],1,paste,collapse=" "))
+          metrics$Title <- 'Cell Concentration vs. Dilution Fraction'
         }
         
         
         if(n_comparison_facs %in% c(0,1)){
-          metrics$Title<-unique(apply(dat[,grouping_factors[-1][grouping_factors[-1]!=factor_to_compare]],1,paste,collapse=" "))
+          #metrics$Title<-unique(apply(dat[,grouping_factors[-1][grouping_factors[-1]!=factor_to_compare]],1,paste,collapse=" "))
+          metrics$Title <- 'Cell Concentration vs. Dilution Fraction'
           metrics$metrics$comp_factor<-metrics$metrics[,factor_to_compare]
 
           metrics_to_plot = c("R.squared",

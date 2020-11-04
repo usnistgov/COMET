@@ -74,9 +74,12 @@ calc.metrics<-function(dat,var_func,smooth_df,plot.bool=TRUE,factor_to_compare=N
     full_join(pooled_cv,by=grouping_factors)%>%
     full_join(means,by=grouping_factors)
   
-  overview.plot<-overview.plot2<-NULL
+  overview.plot = NULL
+  overview.plot2 = NULL
+  residual.plot = NULL
   
   if(plot.bool){
+    
     plot_data<-function(prop_fit,smooth_fit){
       p.res<-prop_fit$residuals
       p.fit<-prop_fit$fitted.values
@@ -87,6 +90,7 @@ calc.metrics<-function(dat,var_func,smooth_df,plot.bool=TRUE,factor_to_compare=N
                  dilution_fraction=rep(x,3),
                  y=c(y,p.res,s.res))
     }
+    
     data.for.plot<-fits%>%
       do(mets=plot_data(.$prop_fit,.$smooth_fit))
     data.for.plot<-rbind.fill(data.for.plot[[1]])
@@ -99,14 +103,29 @@ calc.metrics<-function(dat,var_func,smooth_df,plot.bool=TRUE,factor_to_compare=N
       line_parms$comp_level<-rep(mets[,factor_to_compare],3)
     } 
     
-    overview.plot<-ggplot(data=data.for.plot,aes(y=y,x=dilution_fraction))+
-      geom_abline(data=line_parms,aes(slope=slope,intercept=0))+
-      ylab("")+
+    # mean plot
+    overview.plot<-ggplot(data=data.for.plot[data.for.plot$response_type == 'Mean Conc.',],aes(y=y,x=dilution_fraction))+
+      geom_abline(data=line_parms[line_parms$response_type == 'Mean Conc.',],aes(slope=slope,intercept=0))+
+      ylab("Cell Concentration")+
       xlab("Dilution Fraction")+
-      theme_bw()
+      theme_bw()+
+      ggtitle("Cell Concentration vs. Dilution Fraction")+
+      theme(plot.title = element_text(hjust = 0.5,size=15))
+    
+    # residual plot
+    residual_inds = grepl('resid',data.for.plot$response_type,ignore.case = TRUE)
+    residual_inds_lp = grepl('resid',line_parms$response_type,ignore.case = TRUE)
+    residual.plot<-ggplot(data=data.for.plot[residual_inds,],aes(y=y,x=dilution_fraction))+
+      geom_abline(data=line_parms[residual_inds_lp,],aes(slope=slope,intercept=0))+
+      ylab("n")+
+      xlab("Dilution Fraction")+
+      theme_bw() + 
+      ggtitle("Residual Plot for Model Fits")+
+      theme(plot.title = element_text(hjust = 0.5, size=15))
     
     dat$comp_fac<-dat[,factor_to_compare]
     
+    # time vs difference plot
     overview.plot2<-ggplot(dat,aes(x=time_elapsed,y=cell_conc-starting_soln_conc*target_dilution_fraction,
                                    color=as.factor(rep_obsv),
                                    shape=as.factor(analyst),
@@ -118,13 +137,48 @@ calc.metrics<-function(dat,var_func,smooth_df,plot.bool=TRUE,factor_to_compare=N
       ylab("Difference from Expected Concentration")+
       guides(color=guide_legend(title = "Obs. Rep."))+
       guides(shape=guide_legend(title = "Analyst"))+
-      theme_bw()
+      theme_bw()+
+      ggtitle("Measured Dilution Fraction Integrity")+
+      theme(plot.title = element_text(hjust = 0.5,size=15))
+    
     if(!is.null(factor_to_compare)){
+      # polynomial fit with prediction intervals
+      xlowerlim = min(dat$target_dilution_fraction)
+      xupperlim = max(dat$target_dilution_fraction)
+      npreds = 100
+      x = seq(xlowerlim,xupperlim,length.out = npreds)
+      remove(xlowerlim,xupperlim)
+      methods = unique(data.for.plot$comp_level)
+      
+      df_for_poly = data.frame(x = rep(x,length(methods)), 
+                               y = 0,
+                               lwr = 0,
+                               upr = 0,
+                               comp_level = factor(rep(methods,each=npreds)))
+      
+      for(m in 1:length(methods)) {
+        mod = fits$smooth_fit[fits$counting_method == methods[m]][[1]] # get the appropriate fitted polynomial model
+        X = poly(x,smooth_df,raw=TRUE)
+        colnames(X) = paste('X',1:ncol(X),sep='') # names need to agree with model coefficient names
+        pred_and_fit = predict(mod,X,interval='prediction',weights=1/var_func(x))
+        df_for_poly$y[df_for_poly$comp_level == methods[m]] <- pred_and_fit[,'fit']
+        df_for_poly$lwr[df_for_poly$comp_level == methods[m]] <- pred_and_fit[,'lwr']
+        df_for_poly$upr[df_for_poly$comp_level == methods[m]] <- pred_and_fit[,'upr']
+      }
+      
+      # add smooth fit and prediction intervals to plot
       overview.plot<-overview.plot+
-        facet_grid(response_type~comp_level,scales="free_y")+
         geom_point(aes(color=comp_level))+
-        guides(color=FALSE)+
-        geom_smooth(data=subset(data.for.plot,response_type == 'Mean Conc.'),aes(x=dilution_fraction,y=y),se=FALSE,size=.1)
+        geom_line(data=df_for_poly,aes(x=x,y=y,color=comp_level))+
+        geom_line(data=df_for_poly,aes(x=x,y=lwr,color=comp_level),linetype='dashed')+
+        geom_line(data=df_for_poly,aes(x=x,y=upr,color=comp_level),linetype='dashed')+
+        facet_grid(.~comp_level,scales='free_y')
+        guides(color=FALSE)
+        
+      residual.plot <- residual.plot + 
+        geom_point(aes(color=comp_level)) +
+        facet_grid(response_type~comp_level)
+        
       
       overview.plot2<-overview.plot2+
         facet_grid(comp_fac~.)
@@ -132,8 +186,11 @@ calc.metrics<-function(dat,var_func,smooth_df,plot.bool=TRUE,factor_to_compare=N
     if(is.null(factor_to_compare)){
       overview.plot<-overview.plot+
         facet_grid(response_type~.,scales="free_y")+
-        geom_point()+
-        geom_smooth(data=subset(data.for.plot,response_type == 'Mean Conc.'),aes(x=dilution_fraction,y=y),se=FALSE,size=.1)
+        geom_point()
+      
+      residual.plot <- residual.plot +
+        facet_grid(response_type~.,scales="free_y")+
+        geom_point() 
     }
       
   }
@@ -141,5 +198,6 @@ calc.metrics<-function(dat,var_func,smooth_df,plot.bool=TRUE,factor_to_compare=N
   
   list(metrics=mets%>%gather("Metric","Value",4:ncol(.)),
        overview.plot=overview.plot,
-       overview.plot2=overview.plot2)
+       overview.plot2=overview.plot2,
+       residual.plot = residual.plot)
 }
