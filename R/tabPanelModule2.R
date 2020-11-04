@@ -266,7 +266,6 @@ tp6Server <- function(id, input_file, Metrics) {
         
         colnames(outdf) = c('countingMethod','cellType','propConst','lowerCL','upperCL')
         
-        #browser()
         
         ggplot(outdf, aes_string(x='countingMethod',y='propConst')) + 
           geom_point() +
@@ -289,6 +288,10 @@ tp7UI <- function(id) {
     br(),
     DT::dataTableOutput(ns('comparison_table')),
     br(),
+    h3("Method Precision Plot",align = 'center'),
+    br(),
+    plotOutput(ns('method_precision_plot')),
+    br(),
     h3("Bias Comparison Table",align = 'center'),
     br(),
     DT::dataTableOutput(ns('bias_table'))
@@ -300,6 +303,27 @@ tp7Server <- function(id, Metrics) {
     id,
     function(input,output,session) {
       req(Metrics)
+      
+      output$method_precision_plot <- renderPlot({
+        if(is.null(Metrics()$compare)) {
+          return(NULL)
+        }
+        
+        outdf = Metrics()$prediction.ints
+        
+        # to make the bands look nice
+        # subtract mean and add the line y=x
+        outdf$lwr_centered = outdf$lwr - outdf$y 
+        outdf$upr_centered = outdf$upr - outdf$y 
+        
+        p = ggplot(outdf) + 
+          geom_line(aes(x=x,y=lwr_centered,color=comp_level)) +
+          geom_line(aes(x=x,y=upr_centered,color=comp_level)) +
+          ylab('Centered Cell Concentration') +
+          xlab('Dilution Fraction')
+        
+        print(p)
+      })
       
       output$comparison_table <- DT::renderDataTable({
         

@@ -77,6 +77,7 @@ calc.metrics<-function(dat,var_func,smooth_df,plot.bool=TRUE,factor_to_compare=N
   overview.plot = NULL
   overview.plot2 = NULL
   residual.plot = NULL
+  df_for_poly = NULL
   
   if(plot.bool){
     
@@ -199,5 +200,6 @@ calc.metrics<-function(dat,var_func,smooth_df,plot.bool=TRUE,factor_to_compare=N
   list(metrics=mets%>%gather("Metric","Value",4:ncol(.)),
        overview.plot=overview.plot,
        overview.plot2=overview.plot2,
-       residual.plot = residual.plot)
+       residual.plot = residual.plot,
+       prediction.ints = df_for_poly)
 }
