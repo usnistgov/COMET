@@ -196,14 +196,14 @@ tp6Server <- function(id, input_file, Metrics) {
           formulas = list(
             "Smoothed.R-squared" = 
               '$$ R^2_{smooth} = 1 - \\frac{\\big(e^{(s)}_{ij}\\big)^2}{SST} $$',
-            "Smoothed.Mean.Squared.Error" = 
-              '$$ MSE_{smooth} = \\frac{1}{N} \\sum_{i} \\sum_{j} \\Big( e^{(s)}_{ij} \\Big)^2  $$',
-            "Smoothed.Scaled.Mean.Squared.Error" = 
-              '$$ MSE_{smooth,scaled} = \\frac{1}{N} \\sum_{i} \\sum_{j} \\bigg( \\frac{e^{(s)}_{ij}}{\\hat{\\lambda}_{ij}} \\bigg)^2 $$',
-            "Smoothed.Mean.Absolute.Error"=
-              '$$ MAE_{smooth} = \\frac{1}{N} \\sum_{i} \\sum_{j} \\big| e^{(s)}_{ij} \\big|  $$',
-            "Smoothed.Scaled.Mean.Absolute.Error"=
-              '$$ MAE_{smooth,scaled} = \\frac{1}{N} \\sum_{i} \\sum_{j} \\frac{\\big| e^{(s)}_{ij} \\big|}{\\hat{\\lambda}_{ij}}  $$')
+            "Smoothed.Sum.Squared.Error" = 
+              '$$ SSE_{smooth} = \\frac{1}{\\hat{\\beta}_1 N} \\sum_{i} \\sum_{j} \\Big( e^{(s)}_{ij} \\Big)^2  $$',
+            "Smoothed.Scaled.Sum.Squared.Error" = 
+              '$$ SSE_{smooth,scaled} = \\frac{1}{N} \\sum_{i} \\sum_{j} \\bigg( \\frac{e^{(s)}_{ij}}{\\hat{\\lambda}_{ij}} \\bigg)^2 $$',
+            "Smoothed.Sum.Absolute.Error"=
+              '$$ SAE_{smooth} = \\frac{1}{\\hat{\\beta}_1 N} \\sum_{i} \\sum_{j} \\big| e^{(s)}_{ij} \\big|  $$',
+            "Smoothed.Scaled.Sum.Absolute.Error"=
+              '$$ SAE_{smooth,scaled} = \\frac{1}{N} \\sum_{i} \\sum_{j} \\frac{\\big| e^{(s)}_{ij} \\big|}{\\hat{\\lambda}_{ij}}  $$')
           
           
           inds = which(names(formulas) %in% Metrics()$metrics_to_plot)

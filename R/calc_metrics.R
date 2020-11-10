@@ -111,7 +111,7 @@ calc.metrics<-function(dat,var_func,smooth_df,plot.bool=TRUE,factor_to_compare=N
       xlab("Dilution Fraction")+
       theme_bw()+
       ggtitle("Cell Concentration vs. Dilution Fraction")+
-      theme(plot.title = element_text(hjust = 0.5,size=15))
+      theme(plot.title = element_text(hjust = 0.5,size=15)) 
     
     # residual plot
     residual_inds = grepl('resid',data.for.plot$response_type,ignore.case = TRUE)
@@ -122,7 +122,7 @@ calc.metrics<-function(dat,var_func,smooth_df,plot.bool=TRUE,factor_to_compare=N
       xlab("Dilution Fraction")+
       theme_bw() + 
       ggtitle("Residual Plot for Model Fits")+
-      theme(plot.title = element_text(hjust = 0.5, size=15))
+      theme(plot.title = element_text(hjust = 0.5, size=15)) 
     
     dat$comp_fac<-dat[,factor_to_compare]
     

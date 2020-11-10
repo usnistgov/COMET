@@ -55,9 +55,9 @@ metrics<-function(prop_fit,smooth_fit){
     'Sum.Absolute.Error'=sum(abs(p.res)),
     'Smoothed.R.squared'=summary(f1)$r.squared,
     'Smoothed.Scaled.Sum.Squared.Error'=sum((s.res/p.fit)^2),
-    'Smoothed.Sum.Squared.Error'=sum((s.res)^2), #/p.fit[1]^2,
+    'Smoothed.Sum.Squared.Error'=sum((s.res)^2)/p.fit[1]^2,
     'Smoothed.Scaled.Sum.Absolute.Error'=sum(abs(s.res/p.fit)),
-    'Smoothed.Sum.Absolute.Error'=sum(abs(s.res)))#/p.fit[1])
+    'Smoothed.Sum.Absolute.Error'=sum(abs(s.res))/p.fit[1])
 }
 
 nonpar.boot.simple<-function(dat,i) {
@@ -98,6 +98,15 @@ nonpar.boot.simple<-function(dat,i) {
 }
 
 
+mylogit <- function(x) {
+  log(x/(1-x))
+}
+
+mylogistic <- function(x) {
+  exp(x)/(1 + exp(x))
+}
+
+
 nonpar.boot<-function(dat,i){
   ### Conduct a nonparametric bootstrap to characterize the confidence in these results
   grp.ind<-as.numeric(as.factor(paste(dat$counting_method,
@@ -114,7 +123,7 @@ nonpar.boot<-function(dat,i){
       for(s in samps.boot){
         obs.pool<-which(dat$random_sample_number==s&grp.ind==g)
         t.samp<-sample(obs.pool,length(obs.pool),replace=TRUE)
-        boot.ind<-c(boot.ind,sample(obs.pool,length(obs.pool),replace=TRUE))
+        boot.ind<-c(boot.ind,t.samp)
       }
     }
   }

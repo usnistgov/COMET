@@ -208,9 +208,33 @@ metricsServer <- function(id,input_file) {
               
               incProgress(1/n_boot, detail = paste("Sample",i,"of",n_boot))
             }
-  
-            metrics$metrics$upper<-apply(boot.metrics,1,quantile,(1+conf_lev)/2,na.rm=TRUE)
-            metrics$metrics$lower<-apply(boot.metrics,1,quantile,(1-conf_lev)/2,na.rm=TRUE)
+            
+            # transform skewed variables (everything except mean and cv)
+            rows_to_transform = grepl('R.squared',metrics$metrics$Metric,ignore.case=TRUE)
+            rows_to_transform_nonzero <- grepl('error',metrics$metrics$Metric,ignore.case = TRUE)
+            boot.metrics[rows_to_transform,] = logit(boot.metrics[rows_to_transform,])
+            boot.metrics[rows_to_transform_nonzero,] = log(boot.metrics[rows_to_transform_nonzero,])
+            
+            
+            # percentile confidence intervals
+            se = apply(boot.metrics,1,function(x) sqrt(var(x)))
+            #upper<-apply(boot.metrics,1,quantile,(1+conf_lev)/2,na.rm=TRUE)
+            #lower<-apply(boot.metrics,1,quantile,(1-conf_lev)/2,na.rm=TRUE)
+            
+            # compute reverse percentile intervals (so that interval estimates don't fall outside of interval)
+            value = metrics$metrics$Value
+            value[rows_to_transform] = logit(value[rows_to_transform])
+            value[rows_to_transform_nonzero] = log(value[rows_to_transform_nonzero])
+            t_val = qt((1+conf_lev)/2,n_boot-1)
+            metrics$metrics$upper <- value + t_val*se
+            metrics$metrics$lower <- value - t_val*se
+            
+            # back-transform
+            metrics$metrics$upper[rows_to_transform] <- logistic(metrics$metrics$upper[rows_to_transform])
+            metrics$metrics$lower[rows_to_transform] <- logistic(metrics$metrics$lower[rows_to_transform])
+            metrics$metrics$upper[rows_to_transform_nonzero] <- exp(metrics$metrics$upper[rows_to_transform_nonzero])
+            metrics$metrics$lower[rows_to_transform_nonzero] <- exp(metrics$metrics$lower[rows_to_transform_nonzero])
+            
             if(any(metrics$metrics$lower == 0) | any(metrics$metrics$upper == 0)) {
               #browser()
             }
