@@ -5,11 +5,11 @@ metricsUI <- function(id) {
   ns <- NS(id)
   
   tagList(
-    textInput(ns("na_lab"), label = h3("How are missing values denoted in the file?"), value = "NA"),
+    textInput(ns("na_lab"), label = h4("How are missing values denoted in the file?"), value = "NA"),
     actionButton(ns("help_na_lab"), "Help"),
     hr(),
     
-    selectInput(ns("var_func"), label = h3("Variance is ..."),
+    selectInput(ns("var_func"), label = h4("Variance is ..."),
                 choices = c('proportional to mean','constant','custom'), selected = "proportional to mean"),
     conditionalPanel(
       condition = "input.var_func == 'custom'",
@@ -20,7 +20,7 @@ metricsUI <- function(id) {
     hr(),
 
 
-    selectInput(ns("smooth_df"), label = h3("Order of smoothing polynomial"),
+    selectInput(ns("smooth_df"), label = h4("Order of smoothing polynomial"),
                 choices=c('Default (recommended)','Custom'), selected = 'Default (recommended)'),
     conditionalPanel(
       condition = "input.smooth_df == 'Custom'",
@@ -31,7 +31,7 @@ metricsUI <- function(id) {
     hr(),
     
     
-    selectInput(ns("n_boot"), label = h3("Number of Bootstrap Iterations"), 
+    selectInput(ns("n_boot"), label = h4("Number of Bootstrap Iterations"), 
                 choices = c('25 (test run)','1000 (final run)','custom'), selected = "25 (test run)"),
     conditionalPanel(
       condition = "input.n_boot == 'custom'",
@@ -43,14 +43,14 @@ metricsUI <- function(id) {
     hr(),
     
     
-    sliderInput(ns("conf_lev"), label = h3("Confidence Level"), 
+    sliderInput(ns("conf_lev"), label = h4("Confidence Level"), 
                 min=.80,max=.99,step = .01,
                 value = .95),
     actionButton(ns("help_conf_lev"), "Help"),
     hr(),
     
 
-    checkboxGroupInput(ns("perf.metrics"), label = h3("Performance Metrics"), 
+    checkboxGroupInput(ns("perf.metrics"), label = h4("Performance Metrics"), 
                        choices = list("R-squared"=1,
                                       "Sum Sq Error"=2,
                                       "Sum Abs Error"=3,

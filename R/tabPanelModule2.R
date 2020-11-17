@@ -135,6 +135,7 @@ tp5Server <- function(id, input_file, Metrics){
     })
 }
 
+
 tp6UI <- function(id) {
   ns <- NS(id)
   tagList(
@@ -279,6 +280,7 @@ tp6Server <- function(id, input_file, Metrics) {
       })
     })
 }
+
 
 tp7UI <- function(id) {
   ns <- NS(id)

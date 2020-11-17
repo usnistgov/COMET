@@ -25,7 +25,7 @@ customHTML_head <- function() {
       </div>
       
       <div class="title">
-      Analyze Cell Counting Methods
+      Cell Counting Analysis Tool
       <hr>
       </div>')
 }

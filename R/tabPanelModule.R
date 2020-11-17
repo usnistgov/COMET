@@ -14,7 +14,6 @@ tp1UI <- function(id) {
   )
 }
 
-
 tp1Server <- function(id, input_file, Metrics) {
   moduleServer(
     id,
@@ -42,14 +41,6 @@ tp1Server <- function(id, input_file, Metrics) {
         }
         print(Metrics()$residual.plot)
       })
-      
-      output$Data_Plot2 <- renderPlot({
-        if (is.null(input_file() )) {
-          return(NULL)
-        }
-        print(Metrics()$overview.plot2)
-      })
-      
       
     }
   )
@@ -99,6 +90,7 @@ tp2Server <- function(id, input_file, Metrics) {
     }
   )
 }
+
 
 tp3UI <- function(id) {
   ns <- NS(id)

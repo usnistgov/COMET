@@ -60,7 +60,13 @@ ui<-shinyUI(fluidPage(
                tp6UI('tp6')),
       
       tabPanel("Compare Methods",
-               tp7UI('tp7'))
+               tp7UI('tp7')),
+      
+      tabPanel("Dilution Integrity",
+               tpDilutionUI('tpdil')),
+      
+      tabPanel("Viability",
+               tpViabilityUI('tpvia'))
       
     )),
   
@@ -85,6 +91,8 @@ server<-function(input, output, session) {
   tp5Server('tp5', input_file, Metrics)
   tp6Server('tp6', input_file, Metrics)
   tp7Server('tp7', Metrics)
+  tpDilutionServer('tpdil', Metrics)
+  tpViabilityServer('tpvia', Metrics)
   
   
 

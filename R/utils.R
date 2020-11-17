@@ -40,6 +40,7 @@ smooth_fitter<-function(data,var_func,smooth_df){
   smooth_fit
 }
 
+
 metrics<-function(prop_fit,smooth_fit){
   p.res<-prop_fit$residuals
   p.fit<-prop_fit$fitted.values
@@ -59,6 +60,7 @@ metrics<-function(prop_fit,smooth_fit){
     'Smoothed.Scaled.Sum.Absolute.Error'=sum(abs(s.res/p.fit)),
     'Smoothed.Sum.Absolute.Error'=sum(abs(s.res))/p.fit[1])
 }
+
 
 nonpar.boot.simple<-function(dat,i) {
   ### Conduct a nonparametric bootstrap to characterize the confidence in these results
@@ -101,6 +103,7 @@ nonpar.boot.simple<-function(dat,i) {
 mylogit <- function(x) {
   log(x/(1-x))
 }
+
 
 mylogistic <- function(x) {
   exp(x)/(1 + exp(x))
@@ -147,6 +150,7 @@ nonpar.boot<-function(dat,i){
   cbind(boot.ind,boot.ind2)
 }
 
+
 round_or_truncate <- function(x,numsig) {
   
   if(x < 0) {
@@ -159,5 +163,21 @@ round_or_truncate <- function(x,numsig) {
     return(round(x,numsig))
   }
   
+  
+}
+
+
+get_cdf <- function(data) {
+  
+  n_points = max(c(100,length(data)))
+  
+  x = seq(min(data),max(data),length.out = n_points)
+  y = rep(0,length(x))
+  
+  for(i in 1:length(y)) {
+    y[i] = mean(data < x[i])
+  }
+  
+  return(data.frame(x=x,y=y))
   
 }

@@ -1,8 +1,7 @@
 downloadUI <- function(id) {
   ns <- NS(id)
-  tagList(
-    downloadButton(ns('downloadData'), 'Download Results')
-  )
+  downloadButton(ns('downloadData'), 'Download Results')
+
 }
 
 downloadServer <- function(id, input_file, Metrics) {
