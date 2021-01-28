@@ -198,13 +198,13 @@ tp6Server <- function(id, input_file, Metrics) {
             "Smoothed.R-squared" = 
               '$$ R^2_{smooth} = 1 - \\frac{\\big(e^{(s)}_{ij}\\big)^2}{SST} $$',
             "Smoothed.Sum.Squared.Error" = 
-              '$$ SSE_{smooth} = \\frac{1}{\\hat{\\beta}_1 N} \\sum_{i} \\sum_{j} \\Big( e^{(s)}_{ij} \\Big)^2  $$',
+              '$$ SSE_{smooth} = \\frac{1}{\\hat{\\lambda}_1^2} \\sum_{i} \\sum_{j} \\Big( e^{(s)}_{ij} \\Big)^2  $$',
             "Smoothed.Scaled.Sum.Squared.Error" = 
-              '$$ SSE_{smooth,scaled} = \\frac{1}{N} \\sum_{i} \\sum_{j} \\bigg( \\frac{e^{(s)}_{ij}}{\\hat{\\lambda}_{ij}} \\bigg)^2 $$',
+              '$$ SSE_{smooth,scaled} = \\sum_{i} \\sum_{j} \\bigg( \\frac{e^{(s)}_{ij}}{\\hat{\\lambda}_{ij}} \\bigg)^2 $$',
             "Smoothed.Sum.Absolute.Error"=
-              '$$ SAE_{smooth} = \\frac{1}{\\hat{\\beta}_1 N} \\sum_{i} \\sum_{j} \\big| e^{(s)}_{ij} \\big|  $$',
+              '$$ SAE_{smooth} = \\frac{1}{\\hat{\\lambda}_1 } \\sum_{i} \\sum_{j} \\big| e^{(s)}_{ij} \\big|  $$',
             "Smoothed.Scaled.Sum.Absolute.Error"=
-              '$$ SAE_{smooth,scaled} = \\frac{1}{N} \\sum_{i} \\sum_{j} \\frac{\\big| e^{(s)}_{ij} \\big|}{\\hat{\\lambda}_{ij}}  $$')
+              '$$ SAE_{smooth,scaled} =  \\sum_{i} \\sum_{j} \\frac{\\big| e^{(s)}_{ij} \\big|}{\\hat{\\lambda}_{ij}}  $$')
           
           
           inds = which(names(formulas) %in% Metrics()$metrics_to_plot)
@@ -285,6 +285,7 @@ tp6Server <- function(id, input_file, Metrics) {
 tp7UI <- function(id) {
   ns <- NS(id)
   tagList(
+    withMathJax(),
     br(),
     h3("Comparison Table",align = 'center'),
     br(),
@@ -292,11 +293,17 @@ tp7UI <- function(id) {
     br(),
     h3("Method Precision Plot",align = 'center'),
     br(),
-    plotOutput(ns('method_precision_plot')),
+    plotOutput(ns('precision_plot2')),
     br(),
     h3("Bias Comparison Table",align = 'center'),
     br(),
-    DT::dataTableOutput(ns('bias_table'))
+    textOutput(ns('bias_text')),
+    br(),
+    DT::dataTableOutput(ns('bias_table')),
+    br(),
+    p('In the table above, percent bias is calculated as \\( 100 \\Big(1 - \\frac{\\hat{\\beta}_1}{\\hat{\\beta}_2}\\Big) \\),',
+      'where \\( \\hat{\\beta}_1 \\) and \\( \\hat{\\beta}_2 \\) are the estimated proportionality constants for the two ',
+      'methods in the given row.')
   )
 }
 
@@ -307,24 +314,88 @@ tp7Server <- function(id, Metrics) {
       req(Metrics)
       
       output$method_precision_plot <- renderPlot({
-        if(is.null(Metrics()$compare)) {
-          return(NULL)
+        
+        if(is.null(Metrics()$prediction.ints)) {
+          
+          text = paste("\n  Plot cannot be computed. \n",
+                       "(Perhaps prediction intervals are non-monotonic?)")
+          return(void_plot(text))
+          
+        } 
+        
+        preds <- Metrics()$prediction.ints
+        good_inds = !is.nan(preds[,'lwr'])
+        
+        if(length(good_inds) == 0) {
+          text = paste("\n  Prediction Intervals All NaN. \n",
+                       "(Perhaps only 1 replicate sample per Target DF?)")
+          return(void_plot(text))
         }
         
-        outdf = Metrics()$prediction.ints
+        preds = preds[good_inds,]
+        cms <- unique(preds$comp_level)
         
-        # to make the bands look nice
-        # subtract mean and add the line y=x
-        outdf$lwr_centered = outdf$lwr - outdf$y 
-        outdf$upr_centered = outdf$upr - outdf$y 
+        preds$top <- 0
+        preds$bottom <- 0
         
-        p = ggplot(outdf) + 
-          geom_line(aes(x=x,y=lwr_centered,color=comp_level)) +
-          geom_line(aes(x=x,y=upr_centered,color=comp_level)) +
-          ylab('Centered Cell Concentration') +
+        for(m in 1:length(cms)) {
+          
+          sub_preds = preds[preds$comp_level == cms[m],]
+          
+          # make sure prediction intervals are monotonic
+          
+          check_lwr = any(sub_preds$lwr[2:(nrow(sub_preds)-1)] < sub_preds$lwr[1:(nrow(sub_preds)-2) ])
+          check_upr = any(sub_preds$upr[2:nrow(sub_preds)] < sub_preds$upr[1:(nrow(sub_preds)-1) ])
+          
+          if(any(is.na(c(check_lwr,check_upr)))) {
+            preds$top[preds$comp_level == cms[m]] = NA
+            preds$bottom[preds$comp_level == cms[m]] = NA
+
+          } else {
+            
+            if(check_lwr) {
+              preds$top[preds$comp_level == cms[m]] = NA
+              preds$bottom[preds$comp_level == cms[m]] = NA
+              
+            } else if(check_upr) {
+              preds$top[preds$comp_level == cms[m]] = NA
+              preds$bottom[preds$comp_level == cms[m]] = NA
+              
+            } else {
+              upper <- approxfun(x=sub_preds$lwr,y=sub_preds$x)
+              lower <- approxfun(x=sub_preds$upr,y=sub_preds$x)
+              
+              preds$top[preds$comp_level == cms[m]] <- upper(sub_preds$y)
+              preds$bottom[preds$comp_level == cms[m]] <- lower(sub_preds$y)
+            }
+          }
+          
+        }
+        
+        p = ggplot(preds) + 
+          geom_line(aes(x=x,y=bottom,color=comp_level)) +
+          geom_line(aes(x=x,y=top,color=comp_level)) +
+          geom_abline(slope=1,intercept=0,linetype='dashed') +
+          ylab('Instrument Dilution Fraction Range') +
           xlab('Dilution Fraction')
         
         print(p)
+      })
+      
+      output$precision_plot2 <- renderPlot({
+        if(is.null(Metrics()$df_for_poly)) {
+          return(NULL)
+        }
+        
+        df_for_poly = Metrics()$df_for_poly
+        
+        ggplot(df_for_poly,aes(x=x,col=comp_level)) + 
+          geom_line(aes(y=lwr-y),linetype='dashed') +
+          geom_line(aes(y=upr-y),linetype='dashed') +
+          ylab("Prediction Bound - Predicted Count") +
+          xlab("Dilution Fraction") +
+          geom_hline(yintercept = 0,linetype='dashed') +
+          theme(legend.title = element_blank())
       })
       
       output$comparison_table <- DT::renderDataTable({

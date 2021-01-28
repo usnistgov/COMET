@@ -32,7 +32,7 @@ metricsUI <- function(id) {
     
     
     selectInput(ns("n_boot"), label = h4("Number of Bootstrap Iterations"), 
-                choices = c('25 (test run)','1000 (final run)','custom'), selected = "25 (test run)"),
+                choices = c('50 (test run)','1000 (final run)','custom'), selected = "50 (test run)"),
     conditionalPanel(
       condition = "input.n_boot == 'custom'",
       sliderInput(ns('n_boot_cus'),label='Number of Bootstrap Iterations',
@@ -50,18 +50,18 @@ metricsUI <- function(id) {
     hr(),
     
 
-    checkboxGroupInput(ns("perf.metrics"), label = h4("Performance Metrics"), 
-                       choices = list("R-squared"=1,
-                                      "Sum Sq Error"=2,
-                                      "Sum Abs Error"=3,
+    checkboxGroupInput(ns("perf.metrics"), label = h4("Proportionality Indices"), 
+                       choices = list(#"R-squared"=1,
+                                      #"Sum Sq Error"=2,
+                                      #"Sum Abs Error"=3,
+                                      "Smoothed Scaled Sum Sq Error (recommended)"=8,
                                       "Scaled Sum Sq Error"=4,
                                       "Scaled Sum Abs Error"=5,
                                       "Smoothed R-squared"=6,
                                       "Smoothed Sum Sq Error"=7,
-                                      "Smoothed Scaled Sum Sq Error"=8,
                                       "Smoothed Sum Abs Error" = 9,
                                       "Smoothed Scaled Sum Abs Error"=10),
-                       selected = c(1,5,10)),
+                       selected = 8),
     actionButton(ns("goButton"), "Run Analysis")
   )
 
@@ -135,7 +135,7 @@ metricsServer <- function(id,input_file) {
         eval(parse(text=paste("var_func<-function(mn)",function_body))) 
         
         n_boot <- switch(input$n_boot,
-                         '25 (test run)' = 25,
+                         '50 (test run)' = 50,
                          '1000 (final run)' = 1000,
                          'custom' = input$n_boot_cus)
         
@@ -150,13 +150,69 @@ metricsServer <- function(id,input_file) {
           return(NULL)
         }
         
-        if(!is.null(inFile)){
-          dat<-read.csv(inFile$datapath,na.strings=input$na_lab)
-          dat <- dat[dat$counting_method != '',]
-          dat$cell_conc<-as.numeric(as.character(dat$cell_conc))
-          dat$target_dilution_fraction<-as.numeric(as.character(dat$target_dilution_fraction))
+        dat<- as.data.frame(readr::read_csv(inFile$datapath))
+        
+        expected_colnames = c('counting_method',
+                              'random_sample_number',
+                              'stock_extraction',
+                              'target_dilution_fraction',
+                              'replicate_sample',
+                              'rep_obsv',
+                              'analyst',
+                              'time_elapsed',
+                              'cell_conc')
+        
+        validate(
+          need('counting_method' %in% colnames(dat),
+               "No column named 'counting_method' detected in dataset."),
+          
+          need('random_sample_number' %in% colnames(dat),
+               "No column named 'random_sample_number' detected in dataset."),
+          
+          need('stock_extraction' %in% colnames(dat),
+               "No column named 'stock_extraction' detected in dataset."),
+          
+          need('target_dilution_fraction' %in% colnames(dat),
+               "No column named 'target_dilution_fraction' detected in dataset."),
+          
+          need('replicate_sample' %in% colnames(dat),
+               "No column named 'replicate_sample' detected in dataset."),
+          
+          need('rep_obsv' %in% colnames(dat),
+               "No column named 'rep_obsv' detected in dataset."),
+          
+          need('analyst' %in% colnames(dat),
+               "No column named 'rep_obsv' detected in dataset."),
+          
+          need('time_elapsed' %in% colnames(dat),
+               "No column named 'time_elapsed' detected in dataset."),
+          
+          need('cell_conc' %in% colnames(dat),
+               "No column named 'cell_conc' detected in dataset."),
+          
+          need(length(unique(dat$target_dilution_fraction)) < 15,
+               "Too many unique target dilution fractions."),
+          
+          need(all(is.numeric(dat$random_sample_number)))
+        )
+        
+
+          
+        dat <- dat[dat$counting_method != '',]
+        dat$cell_conc<-as.numeric(as.character(dat$cell_conc))
+        dat$target_dilution_fraction<-as.numeric(as.character(dat$target_dilution_fraction))
+        
+        mdf = dat$measured_dilution_fraction
+        
+        if(all(is.na(mdf)) || is.null(mdf) ) {
+          dat$measured_dilution_fraction<-as.numeric(as.character(dat$target_dilution_fraction))
+          mdf_exists = FALSE
+          
+        } else {
           dat$measured_dilution_fraction<-as.numeric(as.character(dat$measured_dilution_fraction))
+          mdf_exists = TRUE
         }
+          
         
         dat<-dat%>%arrange(counting_method,
                            cell_type,
@@ -172,6 +228,13 @@ metricsServer <- function(id,input_file) {
           print(smooth_df)
         } else {
           smooth_df <- as.numeric(input$smooth_df_cus)
+          validate(
+            need(smooth_df <= length(unique(dat$target_dilution_fraction)) - 1,
+                 "Polynomial model degrees of freedom too high;
+                 model is over-constrained."),
+            need(smooth_df >= 1,
+                 "Polynomial model degrees of freedom should be at least 1.")
+          )
         }
         
         
@@ -211,7 +274,6 @@ metricsServer <- function(id,input_file) {
             
             boot.metrics[is.infinite(boot.metrics)] = NA
             
-            
             # transform skewed variables (everything except mean and cv)
             rows_to_transform = grepl('R.squared',metrics$metrics$Metric,ignore.case=TRUE)
             rows_to_transform_nonzero <- grepl('error',metrics$metrics$Metric,ignore.case = TRUE)
@@ -237,6 +299,9 @@ metricsServer <- function(id,input_file) {
             metrics$metrics$lower[rows_to_transform] <- mylogistic(metrics$metrics$lower[rows_to_transform])
             metrics$metrics$upper[rows_to_transform_nonzero] <- exp(metrics$metrics$upper[rows_to_transform_nonzero])
             metrics$metrics$lower[rows_to_transform_nonzero] <- exp(metrics$metrics$lower[rows_to_transform_nonzero])
+            
+            # cap at 0
+            metrics$metrics$lower <- pmax(metrics$metrics$lower,0)
             
             if(any(metrics$metrics$lower == 0) | any(metrics$metrics$upper == 0)) {
               #browser()
@@ -268,6 +333,7 @@ metricsServer <- function(id,input_file) {
                               "Smoothed.Scaled.Sum.Absolute.Error")
           
           metrics$metrics_to_plot = metrics_to_plot[as.numeric(input$perf.metrics)]
+          metrics$metrics_to_plot = c("R.squared",metrics$metrics_to_plot)
           plot.metrics<- metrics$metrics[ metrics$metrics$Metric %in% metrics$metrics_to_plot,]
           
           metrics$metrics.plot<-ggplot(plot.metrics,aes(x=comp_factor,y=Value,color=comp_factor))+
@@ -339,7 +405,6 @@ metricsServer <- function(id,input_file) {
           }
         }
         
-        #browser()
         
         metrics$dat<-dat
         metrics$smooth_df<-smooth_df

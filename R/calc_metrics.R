@@ -87,38 +87,57 @@ calc.metrics<-function(dat,var_func,smooth_df,plot.bool=TRUE,factor_to_compare=N
       y<-prop_fit$model$y
       x<-prop_fit$model$x
       s.res<-smooth_fit$fitted.values-p.fit
-      data.frame(response_type=rep(c("Mean Conc.","Raw Residuals","Smoothed Residuals"),each=length(y)),
-                 dilution_fraction=rep(x,3),
-                 y=c(y,p.res,s.res))
+      data.frame(response_type=rep(c("Mean Conc.","Raw Resids","Smth Resids",
+                                     "Scl, Smth Resids"),each=length(y)),
+                 dilution_fraction=rep(x,4),
+                 y=c(y,p.res,s.res,s.res/sqrt(x) ))
     }
+
     
     data.for.plot<-fits%>%
       do(mets=plot_data(.$prop_fit,.$smooth_fit))
+    
     data.for.plot<-rbind.fill(data.for.plot[[1]])
     line_parms<-fits%>%do(as.data.frame(coef(.$prop_fit)))
-    line_parms<-data.frame(slope=c(unlist(line_parms),rep(0,2*nrow(mets))),
-                           response_type=rep(c("Mean Conc.","Raw Residuals","Smoothed Residuals"),each=nrow(mets)))
+    line_parms<-data.frame(slope=c(unlist(line_parms),rep(0,3*nrow(mets))),
+                           response_type=rep(c("Mean Conc.","Raw Resids","Smth Resids",
+                                               "Scl, Smth Resids"),
+                                             each=nrow(mets)))
+    
+    line_parms$response_type = factor(line_parms$response_type,
+                                      levels=c("Mean Conc.","Raw Resids","Smth Resids",
+                                               "Scl, Smth Resids"))
     
     if(!is.null(factor_to_compare)){
-      data.for.plot$comp_level<-rep(mets[,factor_to_compare],3*table(rep_dat[,factor_to_compare]))
-      line_parms$comp_level<-rep(mets[,factor_to_compare],3)
+      data.for.plot$comp_level<-rep(mets[,factor_to_compare],4*table(rep_dat[,factor_to_compare]))
+      line_parms$comp_level<-rep(mets[,factor_to_compare],4)
     } 
     
     # mean plot
     overview.plot<-ggplot(data=data.for.plot[data.for.plot$response_type == 'Mean Conc.',],aes(y=y,x=dilution_fraction))+
+      geom_point(aes(color=comp_level))+
       geom_abline(data=line_parms[line_parms$response_type == 'Mean Conc.',],aes(slope=slope,intercept=0))+
+      facet_grid(.~comp_level,scales='free_y')+
       ylab("Cell Concentration")+
       xlab("Dilution Fraction")+
       theme_bw()+
-      ggtitle("Cell Concentration vs. Dilution Fraction")+
-      theme(plot.title = element_text(hjust = 0.5,size=15)) 
+      ggtitle("Mean Cell Concentration vs. Dilution Fraction")+
+      theme(plot.title = element_text(hjust = 0.5,size=15)) +
+      guides(color=FALSE)
+    
+    overview.plot = overview.plot + coord_cartesian(ylim=c(0, max(overview.plot$data$y)))
     
     # residual plot
     residual_inds = grepl('resid',data.for.plot$response_type,ignore.case = TRUE)
     residual_inds_lp = grepl('resid',line_parms$response_type,ignore.case = TRUE)
+
+    data.for.plot$response_type = factor(data.for.plot$response_type,
+                                         levels= c("Mean Conc.","Raw Resids","Smth Resids",
+                                         "Scl, Smth Resids"))
+    
     residual.plot<-ggplot(data=data.for.plot[residual_inds,],aes(y=y,x=dilution_fraction))+
       geom_abline(data=line_parms[residual_inds_lp,],aes(slope=slope,intercept=0))+
-      ylab("n")+
+      ylab("Cell Concentration \n (bottom row scaled by DF)")+
       xlab("Dilution Fraction")+
       theme_bw() + 
       ggtitle("Residual Plot for Model Fits")+
@@ -139,7 +158,7 @@ calc.metrics<-function(dat,var_func,smooth_df,plot.bool=TRUE,factor_to_compare=N
       guides(color=guide_legend(title = "Obs. Rep."))+
       guides(shape=guide_legend(title = "Analyst"))+
       theme_bw()+
-      ggtitle("Measured Dilution Fraction Integrity")+
+      ggtitle("Sample Integrity Over Time")+
       theme(plot.title = element_text(hjust = 0.5,size=15))
     
     if(!is.null(factor_to_compare)){
@@ -167,18 +186,10 @@ calc.metrics<-function(dat,var_func,smooth_df,plot.bool=TRUE,factor_to_compare=N
         df_for_poly$upr[df_for_poly$comp_level == methods[m]] <- pred_and_fit[,'upr']
       }
       
-      # add smooth fit and prediction intervals to plot
-      overview.plot<-overview.plot+
-        geom_point(aes(color=comp_level))+
-        geom_line(data=df_for_poly,aes(x=x,y=y,color=comp_level))+
-        geom_line(data=df_for_poly,aes(x=x,y=lwr,color=comp_level),linetype='dashed')+
-        geom_line(data=df_for_poly,aes(x=x,y=upr,color=comp_level),linetype='dashed')+
-        facet_grid(.~comp_level,scales='free_y')
-        guides(color=FALSE)
-        
       residual.plot <- residual.plot + 
         geom_point(aes(color=comp_level)) +
-        facet_grid(response_type~comp_level)
+        facet_grid(rows = vars(response_type), cols=vars(comp_level)) +
+        guides(color=FALSE)
         
       
       overview.plot2<-overview.plot2+
@@ -196,9 +207,9 @@ calc.metrics<-function(dat,var_func,smooth_df,plot.bool=TRUE,factor_to_compare=N
       
   }
   
-  
   list(metrics=mets%>%gather("Metric","Value",4:ncol(.)),
        overview.plot=overview.plot,
+       df_for_poly=df_for_poly,
        overview.plot2=overview.plot2,
        residual.plot = residual.plot,
        prediction.ints = df_for_poly)

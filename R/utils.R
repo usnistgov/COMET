@@ -1,3 +1,16 @@
+
+void_plot = function(text) {
+  ggplot() + 
+    annotate("text", x = 4, y = 25, size=5, label = text) +
+    theme(axis.title.x=element_blank(),
+          axis.text.x=element_blank(),
+          axis.ticks.x=element_blank()) +
+    theme(axis.title.y=element_blank(),
+          axis.text.y =element_blank(),
+          axis.ticks.y=element_blank())
+}
+
+
 ### Function fitting a proportional model
 prop_fitter<-function(data,var_func){
   y=unlist(data$mean_conc)
@@ -15,9 +28,12 @@ smooth_fitter<-function(data,var_func,smooth_df){
   #  x<-x[!is.na(y)]
   nn<-unlist(data$n_conc)#[!is.na(y)]
   #    y<-y[!is.na(y)]
-  if(is.null(smooth_df))smooth_df<-length(unique(data$target_dilution_fraction))-1
+  if(is.null(smooth_df)) {
+    smooth_df<-length(unique(data$target_dilution_fraction))-1
+  }
+
   fit.dat2<-data.frame(y,poly(x,smooth_df,raw=TRUE))
-  smooth_fit<-lm(y~.,w=nn/var_func(x),data=fit.dat2)
+  smooth_fit<-lm(y~.,w=1/var_func(x),data=fit.dat2)
   # old.means<-0
   # new.means<-predict(smooth_fit)
   # #browser()
@@ -48,6 +64,7 @@ metrics<-function(prop_fit,smooth_fit){
   s.res<-s.fit-p.fit
   w<-smooth_fit$model$'(weights)'
   f1<-lm(s.fit~p.fit-1,w=w)
+
   c('Prop.Const'=prop_fit$coefficients,
     'R.squared'=summary(prop_fit)$r.squared,
     'Scaled.Sum.Squared.Error'=sum((p.res/p.fit)^2),
@@ -115,13 +132,21 @@ nonpar.boot<-function(dat,i){
   grp.ind<-as.numeric(as.factor(paste(dat$counting_method,
                                       dat$cell_type,
                                       dat$concentration_type)))
+
+  
   boot.ind<-NULL
   for(g in 1:max(grp.ind)){
     set.seed(i)
     for(t in unique(dat$target_dilution_fraction[grp.ind==g])){
       
-      samps.pool<-unique(dat$random_sample_number[dat$target_dilution_fraction==t&grp.ind==g])
-      samps.boot<-sample(samps.pool,length(samps.pool),replace=TRUE)
+      samps.pool<-unique(dat$random_sample_number[dat$target_dilution_fraction==t & grp.ind==g])
+      if(length(samps.pool) == 1) {
+        samps.boot = samps.pool
+      
+      } else{ 
+        samps.boot<-sample(samps.pool,length(samps.pool),replace=TRUE)
+      }
+      
       
       for(s in samps.boot){
         obs.pool<-which(dat$random_sample_number==s&grp.ind==g)
@@ -180,4 +205,23 @@ get_cdf <- function(data) {
   
   return(data.frame(x=x,y=y))
   
+}
+
+
+find_ranges<-function(y,x,var_func,degree,new_x=1:100/100){
+  
+  
+  # fit polynomial model, get prediction intervals on new data
+  X<-poly(x,degree=degree,raw=TRUE)
+  fit<-lm(y~.,weights=1/var_func(x),data=as.data.frame(X))
+
+  newdata<-poly(new_x,degree=degree,raw=TRUE)
+  pred1<-predict(fit,newdata=as.data.frame(newdata),interval="prediction",weights=1/var_func(new_x))
+  upper<-approxfun(x=pred1[,2],y=new_x)
+  lower<-approxfun(x=pred1[,3],y=new_x)
+  
+  top<-upper(pred1[,1])
+  bottom<-lower(pred1[,1])
+  
+  return(data.frame(new_x=new_x,top=top,bottom=bottom))
 }

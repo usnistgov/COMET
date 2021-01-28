@@ -1,0 +1,10 @@
+name: appv1
+title:
+username:
+account: cell-counting
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 2995231
+bundleId: 4141940
+url: https://cell-counting.shinyapps.io/appv1/
+when: 1611605738.78468

@@ -11,6 +11,7 @@ source('R/downloadModule.R')
 source('R/tabPanelModule.R')
 source('R/tabPanelModule2.R')
 source('R/customHTML.R')
+source('other/descriptions.R')
 
 options(dplyr.summarise.inform = FALSE)
 
@@ -36,10 +37,11 @@ ui<-shinyUI(fluidPage(
       hr(),
       hr(),
       hr(),
-      h6("Authored by Steve Lund and David Newton"),
-      h6("Statistical Engineering Division"),
-      h6("Information Technology Laboratory"),
-      h6("National Institute of Standards and Technology")
+      h6("Code: Steve Lund and David Newton"),
+      h6("UI/UX: Sumona Sarkar and Laura Pierce"),
+      h6("National Institute of Standards and Technology"),
+      hr(),
+      h6("Contact david.newton@nist.gov regarding any bugs.")
     ),
     
     mainPanel( tabsetPanel(
@@ -62,10 +64,10 @@ ui<-shinyUI(fluidPage(
       tabPanel("Compare Methods",
                tp7UI('tp7')),
       
-      tabPanel("Dilution Integrity",
+      tabPanel("Experiment Integrity",
                tpDilutionUI('tpdil')),
       
-      tabPanel("Viability",
+      tabPanel("Viability Analysis",
                tpViabilityUI('tpvia'))
       
     )),

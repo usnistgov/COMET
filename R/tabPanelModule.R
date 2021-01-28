@@ -4,13 +4,21 @@ tp1UI <- function(id) {
   ns <- NS(id)
   tagList(
     br(),
-    plotOutput(ns("Data_Plot"), height = "600px"),
+    plotOutput(ns("raw_data_plot")),
     br(),
+    helpText(descriptions[['tp1_raw_data_plot']]),
     br(),
-    plotOutput(ns("residual_plot"), height = '600px'),
+    plotOutput(ns("data_plot")),
     br(),
+    fluidRow(column(4),column(2,actionButton(ns('flex_mod'),'Toggle Flexible Model',align='center'))),
     br(),
-    plotOutput(ns("Data_Plot2"), height = "600px")
+    helpText(descriptions[['tp1_data_plot']]),
+    br(),
+    plotOutput(ns("residual_plot")),
+    br(),
+    helpText(descriptions[['tp1_residual_plot']])
+
+    
   )
 }
 
@@ -28,11 +36,52 @@ tp1Server <- function(id, input_file, Metrics) {
 
       }) 
       
-      output$Data_Plot <- renderPlot({
+      flexible <- reactiveValues(show=FALSE)
+      
+      observeEvent(input$flex_mod, {
+        flexible$show = !flexible$show
+      })
+      
+      output$data_plot <- renderPlot({
         if (is.null(input_file())) {
           return(NULL)
         }
-        print(Metrics()$overview.plot)
+        
+        overview.plot = Metrics()$overview.plot 
+        df_for_poly = Metrics()$df_for_poly
+        
+        if(flexible$show) {
+          # add smooth fit and prediction intervals to plot
+          overview.plot<-overview.plot+
+            geom_line(data=df_for_poly,aes(x=x,y=y,color=comp_level))+
+            geom_line(data=df_for_poly,aes(x=x,y=lwr,color=comp_level),linetype='dashed')+
+            geom_line(data=df_for_poly,aes(x=x,y=upr,color=comp_level),linetype='dashed')
+          
+          overview.plot
+          
+        } else {
+          overview.plot
+        }
+        
+      })
+      
+      output$raw_data_plot <- renderPlot({
+        if(is.null(input_file())) {
+          return(NULL)
+        }
+        
+        dat = Metrics()$dat
+        
+        ggplot(dat, aes(x=measured_dilution_fraction, y=cell_conc, col=counting_method)) + 
+          geom_point() +
+          facet_wrap(~counting_method) + 
+          ggtitle("Raw Data") +
+          xlab("Dilution Fraction") +
+          ylab("Cell Concentration") +
+          theme_bw() +
+          theme(plot.title = element_text(hjust = 0.5))+
+          guides(color=FALSE)
+        
       })
       
       output$residual_plot <- renderPlot({
@@ -103,7 +152,6 @@ tp3UI <- function(id) {
     h3('Pipetting Error',align='center'),
     br(),
     DT::dataTableOutput(ns('table2')),
-    br(),
     h3('Number of Replicate Samples',align='center'),
     br(),
     DT::dataTableOutput(ns('table3')),
@@ -175,6 +223,7 @@ tp3Server <- function(id, input_file, Metrics){
         colnames(outdf)[1]='Target DF'
         outdf
       },options=list(searching=FALSE,ordering=FALSE))
+      
       
     }
     
