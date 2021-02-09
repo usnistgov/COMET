@@ -193,7 +193,8 @@ metricsServer <- function(id,input_file) {
           need(length(unique(dat$target_dilution_fraction)) < 15,
                "Too many unique target dilution fractions."),
           
-          need(all(is.numeric(dat$random_sample_number)))
+          need(all(is.numeric(dat$random_sample_number)),
+               "Non-numeric values detected in 'random_sample_number' column.")
         )
         
 
