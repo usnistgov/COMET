@@ -5,14 +5,21 @@ metricsUI <- function(id) {
   ns <- NS(id)
   
   tagList(
-    textInput(ns("na_lab"), label = h4("How are missing values denoted in the file?"), value = "NA"),
+    selectInput(ns("na_lab"), label = h4("How are missing values denoted in?"),
+              choices = c("Blank or indicated with 'NA' (default).",
+                          "Other")),
+    conditionalPanel(condition="input.na_lab == 'Other'",
+                     textInput(ns('na_lab_custom'),label='Enter how missing values are indicated:',
+                               value="Missing"),
+                     ns = ns),
     actionButton(ns("help_na_lab"), "Help"),
     hr(),
     
     selectInput(ns("var_func"), label = h4("Variance is ..."),
-                choices = c('proportional to mean','constant','custom'), selected = "proportional to mean"),
+                choices = c('Proportional to mean (default)','Constant','Custom'), selected = "Proportional to mean (default)"),
+    
     conditionalPanel(
-      condition = "input.var_func == 'custom'",
+      condition = "input.var_func == 'Custom'",
       textInput(ns('cus_var_func'),label='Variance is proportional to',value='mn^2'), 
       ns = ns
     ),
@@ -55,13 +62,16 @@ metricsUI <- function(id) {
                                       #"Sum Sq Error"=2,
                                       #"Sum Abs Error"=3,
                                       "Smoothed Scaled Sum Sq Error (recommended)"=8,
-                                      "Scaled Sum Sq Error"=4,
-                                      "Scaled Sum Abs Error"=5,
-                                      "Smoothed R-squared"=6,
+                                      #"Scaled Sum Sq Error"=4,
+                                      #"Scaled Sum Abs Error"=5,
+                                      #"Smoothed R-squared"=6,
                                       "Smoothed Sum Sq Error"=7,
                                       "Smoothed Sum Abs Error" = 9,
                                       "Smoothed Scaled Sum Abs Error"=10),
                        selected = 8),
+    actionButton(ns("help_pis"),"Help"),
+    hr(),
+    hr(),
     actionButton(ns("goButton"), "Run Analysis")
   )
 
@@ -123,14 +133,21 @@ metricsServer <- function(id,input_file) {
         ))
       })
       
+      observeEvent(input$help_pis, {
+        showModal(modalDialog(
+          title = "Help: Proportionality Indices",
+          paste(descriptions$help_pis)
+        ))
+      })
+      
       Metrics<-eventReactive(input$goButton, {
         
         
         # note: if 'mn' and '1' are changed, need to update stat analysis tab
         function_body <- switch(input$var_func,
-                                'proportional to mean' = 'mn',
-                                'constant' = '1',
-                                'custom' = input$cus_var_func)
+                                'Proportional to mean (default)' = 'mn',
+                                'Constant' = '1',
+                                'Custom' = input$cus_var_func)
         
         eval(parse(text=paste("var_func<-function(mn)",function_body))) 
         
@@ -150,7 +167,7 @@ metricsServer <- function(id,input_file) {
           return(NULL)
         }
         
-        dat<- as.data.frame(readr::read_csv(inFile$datapath))
+        dat <- as.data.frame(readr::read_csv(inFile$datapath))
         
         expected_colnames = c('counting_method',
                               'random_sample_number',
@@ -161,6 +178,7 @@ metricsServer <- function(id,input_file) {
                               'analyst',
                               'time_elapsed',
                               'cell_conc')
+        
         
         validate(
           need('counting_method' %in% colnames(dat),
@@ -182,7 +200,7 @@ metricsServer <- function(id,input_file) {
                "No column named 'rep_obsv' detected in dataset."),
           
           need('analyst' %in% colnames(dat),
-               "No column named 'rep_obsv' detected in dataset."),
+               "No column named 'analyst' detected in dataset."),
           
           need('time_elapsed' %in% colnames(dat),
                "No column named 'time_elapsed' detected in dataset."),
@@ -197,9 +215,18 @@ metricsServer <- function(id,input_file) {
                "Non-numeric values detected in 'random_sample_number' column.")
         )
         
+        if(input$na_lab == 'Other') {
+          for(ii in 1:length(expected_colnames)) {
+            
+            
+            
+          }
+        }
+        
 
-          
         dat <- dat[dat$counting_method != '',]
+        dat <- dat[!is.na(dat$counting_method),]
+        dat <- dat[!is.na(dat$cell_conc),]
         dat$cell_conc<-as.numeric(as.character(dat$cell_conc))
         dat$target_dilution_fraction<-as.numeric(as.character(dat$target_dilution_fraction))
         
@@ -212,6 +239,8 @@ metricsServer <- function(id,input_file) {
         } else {
           dat$measured_dilution_fraction<-as.numeric(as.character(dat$measured_dilution_fraction))
           mdf_exists = TRUE
+          missing_inds = which(is.na(dat$measured_dilution_fraction))
+          dat$measured_dilution_fraction[missing_inds] = dat$target_dilution_fraction[missing_inds] 
         }
           
         
@@ -226,7 +255,7 @@ metricsServer <- function(id,input_file) {
         
         if(input$smooth_df == 'Default (recommended)') {
           smooth_df <- length(unique(dat$target_dilution_fraction)) - 1
-          print(smooth_df)
+          #print(smooth_df)
         } else {
           smooth_df <- as.numeric(input$smooth_df_cus)
           validate(
@@ -250,6 +279,7 @@ metricsServer <- function(id,input_file) {
         
         #### If there's no comparison factor, set to NULL 
         if(n_comparison_facs==0) factor_to_compare<-'counting_method'
+
         
         #### If there's more than one comparison factor, shut off plots
         metrics<-calc.metrics(dat,var_func,smooth_df,plot.bool=n_comparison_facs<2,factor_to_compare)
@@ -259,7 +289,7 @@ metricsServer <- function(id,input_file) {
           if(n_boot>20){
             boot.metrics<-matrix(NA,nrow(metrics$metrics),n_boot)
             for(i in 1:n_boot){
-              boot.ind <- nonpar.boot(dat,i)
+              boot.ind <- nonpar.boot.simple(dat,i)
               boot.dat <- dat[boot.ind[,1],]
               boot.dat$cell_conc <- dat$cell_conc[boot.ind[,2]]
               boot.dat$cell_conc[is.na(dat$cell_conc)] <- NA
@@ -301,6 +331,9 @@ metricsServer <- function(id,input_file) {
             metrics$metrics$upper[rows_to_transform_nonzero] <- exp(metrics$metrics$upper[rows_to_transform_nonzero])
             metrics$metrics$lower[rows_to_transform_nonzero] <- exp(metrics$metrics$lower[rows_to_transform_nonzero])
             
+            boot.metrics[rows_to_transform,] <- mylogistic(boot.metrics[rows_to_transform,])
+            boot.metrics[rows_to_transform_nonzero,] <- exp(boot.metrics[rows_to_transform_nonzero,])
+            
             # cap at 0
             metrics$metrics$lower <- pmax(metrics$metrics$lower,0)
             
@@ -334,8 +367,19 @@ metricsServer <- function(id,input_file) {
                               "Smoothed.Scaled.Sum.Absolute.Error")
           
           metrics$metrics_to_plot = metrics_to_plot[as.numeric(input$perf.metrics)]
-          metrics$metrics_to_plot = c("R.squared",metrics$metrics_to_plot)
+          metrics$metrics_to_plot = c(metrics$metrics_to_plot)
           plot.metrics<- metrics$metrics[ metrics$metrics$Metric %in% metrics$metrics_to_plot,]
+          
+          plot.metrics.r2 <- metrics$metrics[metrics$metrics$Metric == 'R.squared',]
+          
+          metrics$metrics.plot.r2 = metrics$metrics.plot<-ggplot(plot.metrics.r2,aes(x=comp_factor,y=Value,color=comp_factor))+
+            facet_wrap(~Metric,scales="free_y")+
+            geom_point(size=2)+
+            ylab("")+xlab("")+        
+            theme_bw()+ 
+            guides(color=FALSE)+
+            theme(axis.text.x = element_text(angle = 90, hjust = 1,vjust=.5)) +
+            theme(aspect.ratio=1)
           
           metrics$metrics.plot<-ggplot(plot.metrics,aes(x=comp_factor,y=Value,color=comp_factor))+
             facet_wrap(~Metric,scales="free_y")+
@@ -345,36 +389,74 @@ metricsServer <- function(id,input_file) {
             guides(color=FALSE)+
             theme(axis.text.x = element_text(angle = 90, hjust = 1,vjust=.5)) +
             theme(aspect.ratio=1)
-          cv<- filter(metrics$metrics,substr(Metric,1,4)=="pool")
-          cv$Metric<-as.numeric(gsub("pooled_cv_","",cv$Metric))
-          metrics$cv_plot<-ggplot(cv,aes(y=Value,fill=comp_factor,x=Metric))+
+
+          
+          #cv<- filter(metrics$metrics,substr(Metric,1,4)=="pool")
+          #cv$Metric<-as.numeric(gsub("pooled_cv_","",cv$Metric))
+          
+          se_df = dat %>% 
+            group_by(counting_method,target_dilution_fraction,replicate_sample) %>% 
+            summarise(std_dev = sd(cell_conc),
+                      mn = mean(cell_conc),
+                      cv = std_dev/mn,
+                      N = n()) 
+          
+          cv = se_df %>%
+            group_by(counting_method,target_dilution_fraction) %>% 
+            summarise(pcv = sum(cv*N/sum(N)),
+                      std_err_cv = sd(cv)/sqrt(n()),
+                      upper = pcv + std_err_cv,
+                      lower = pcv - std_err_cv)
+          
+          means = se_df %>%
+            group_by(counting_method,target_dilution_fraction) %>% 
+            summarise(pooled_mn = sum(mn*N/sum(N)),
+                      std_err_mn = sd(mn)/sqrt(n()),
+                      upper = pooled_mn + std_err_mn,
+                      lower = pooled_mn - std_err_mn)
+          
+          metrics$means = means
+          metrics$cv = cv
+          
+          metrics$cv_plot<-ggplot(cv,aes(y=pcv,
+                                         fill=counting_method,
+                                         x=target_dilution_fraction))+
             geom_col(position="dodge")+
-            ylab("Pooled CV")+
+            geom_errorbar(data=cv,
+                          aes(x=target_dilution_fraction,ymax=upper,ymin=lower),
+                          position="dodge")+
+            ylab("Mean %CV")+
             xlab("Dilution Fraction")+
             guides(fill=guide_legend(title = factor_to_compare))+
             theme_bw()
           
-          means<-filter(metrics$metrics,substr(Metric,1,4)=="mean")
-          means$Metric<-as.numeric(gsub("mean_conc_","",means$Metric))
-          metrics$means_plot<-ggplot(means,aes(y=Value,fill=comp_factor,x=Metric))+
+          #means<-filter(metrics$metrics,substr(Metric,1,4)=="mean")
+          #means$Metric<-as.numeric(gsub("mean_conc_","",means$Metric))
+          
+          metrics$means_plot<-ggplot(means,aes(y=pooled_mn,
+                                               fill=counting_method,
+                                               x=target_dilution_fraction))+
             geom_col(position="dodge")+
+            geom_errorbar(data=means,
+                          aes(x=target_dilution_fraction,ymax=upper,ymin=lower),
+                          position="dodge")+
             ylab("Average Concentration")+
             xlab("Dilution Fraction")+
             guides(fill=guide_legend(title = factor_to_compare))+
             theme_bw()
           
+            
+          metrics$cv_plot<- metrics$cv_plot
+          
           if(n_boot>20){
             metrics$metrics.plot<-metrics$metrics.plot+
               geom_pointrange(data=plot.metrics,
                               aes(x=comp_factor,y=Value,color=comp_factor,ymin=lower,ymax=upper))
-            metrics$means_plot<- metrics$means_plot+
-              geom_errorbar(data=means,
-                            aes(x=Metric,ymax=upper,ymin=lower),
-                            position="dodge")
-            metrics$cv_plot<- metrics$cv_plot+
-              geom_errorbar(data=cv,
-                            aes(x=Metric,ymax=upper,ymin=lower),
-                            position="dodge")
+            
+            metrics$metrics.plot.r2 <-metrics$metrics.plot.r2 +
+              geom_pointrange(data=plot.metrics.r2,
+                              aes(x=comp_factor,y=Value,color=comp_factor,ymin=lower,ymax=upper))
+            
             
             # first column is value, next n_boot columns are samples
             boot.metrics<-cbind(metrics$metrics$Value,boot.metrics)

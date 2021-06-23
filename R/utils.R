@@ -136,7 +136,7 @@ nonpar.boot<-function(dat,i){
   
   boot.ind<-NULL
   for(g in 1:max(grp.ind)){
-    set.seed(i)
+    #set.seed(i)
     for(t in unique(dat$target_dilution_fraction[grp.ind==g])){
       
       samps.pool<-unique(dat$random_sample_number[dat$target_dilution_fraction==t & grp.ind==g])
@@ -155,6 +155,7 @@ nonpar.boot<-function(dat,i){
       }
     }
   }
+  
   na_obs<-which(is.na(dat$cell_conc[boot.ind]))
   
   boot.ind2<-boot.ind 
@@ -207,9 +208,22 @@ get_cdf <- function(data) {
   
 }
 
+make_monotonic <- function(y) {
+  # takes a function and flattens where necessary so that there are no 'hills'
+  
+  flat_y = y
+
+  for(ii in 2:length(y)) {
+    if(any(y[-(1:ii)] < y[ii])) {
+      flat_y[ii] = min(y[-(1:ii)])
+    }
+  }
+  
+  return(flat_y)
+}
+
 
 find_ranges<-function(y,x,var_func,degree,new_x=1:100/100){
-  
   
   # fit polynomial model, get prediction intervals on new data
   X<-poly(x,degree=degree,raw=TRUE)
@@ -225,3 +239,4 @@ find_ranges<-function(y,x,var_func,degree,new_x=1:100/100){
   
   return(data.frame(new_x=new_x,top=top,bottom=bottom))
 }
+

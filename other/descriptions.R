@@ -25,5 +25,15 @@ descriptions = list(
                             "indicate the difference between the flexible model's fitted",
                             "values and the proportional model's fitted values.",
                             'The bottom row plots the smoothed residuals (row 2),',
-                            'which have been scaled by the dilution fraction (x-axis).')
+                            'which have been scaled by the dilution fraction (x-axis).'),
+  
+  help_pis = paste('Each PI gives a different measure of proportional fit for the data.',
+                   '"Smoothed" residuals are computed from the difference between the',
+                   'proportional model and the flexible model. Large values suggest',
+                   'that the data is not proportional.',
+                   '"Scaled" residuals have been scaled by the dilution fraction so',
+                   'that a 10% deviation, say, at two different dilution fractions are',
+                   'penalized equally in PI term (generally recommended).',
+                   'PIs using squared error penalize large residuals to a greater extent',
+                   'than PIs using absolute error.')
 )

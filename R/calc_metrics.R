@@ -11,16 +11,17 @@ calc.metrics<-function(dat,var_func,smooth_df,plot.bool=TRUE,factor_to_compare=N
              stock_extraction) %>%
     summarise(var_conc=var(cell_conc,na.rm=TRUE),   ### variance of replicate cell concentration measurements
               mean_conc=mean(cell_conc,na.rm=TRUE), ### mean cell concentration
-              n_conc=sum(!is.na(cell_conc)))   ### Number of replicate observations
+              n_conc=sum(!is.na(cell_conc))) ### Number of replicate observations
+    
 
-  
   ### Compute a pooled coefficient of variation at each target dilution fraction
   pooled_cv<-rep_dat%>%group_by(counting_method,
                                 target_dilution_fraction,
                                 cell_type,
                                 concentration_type)%>%
-    summarise(pool_cv=sqrt(sum(((n_conc-1)*(var_conc + .000001))[n_conc>1])/sum(n_conc[n_conc>1]-1))/
-                (sum(n_conc*mean_conc)/sum(n_conc)))
+    summarise(pool_cv = mean(sqrt(var_conc)/(mean_conc + .00000001)))
+    #summarise(pool_cv=sqrt(sum(((n_conc-1)*(var_conc + .000001))[n_conc>1])/(sum(n_conc[n_conc>1])-1))/(sum(n_conc*mean_conc)/sum(n_conc)))
+
   
   
   if(any(is.na(pooled_cv$pool_cv))){
@@ -112,20 +113,22 @@ calc.metrics<-function(dat,var_func,smooth_df,plot.bool=TRUE,factor_to_compare=N
       data.for.plot$comp_level<-rep(mets[,factor_to_compare],4*table(rep_dat[,factor_to_compare]))
       line_parms$comp_level<-rep(mets[,factor_to_compare],4)
     } 
+
     
     # mean plot
-    overview.plot<-ggplot(data=data.for.plot[data.for.plot$response_type == 'Mean Conc.',],aes(y=y,x=dilution_fraction))+
-      geom_point(aes(color=comp_level))+
+    rep_dat$stock_solution = factor(rep_dat$stock_solution)
+    line_parms$counting_method = line_parms$comp_level
+    
+    overview.plot<-ggplot(data=rep_dat,aes(y=mean_conc,x=measured_dilution_fraction,col=stock_solution))+
+      geom_point()+
       geom_abline(data=line_parms[line_parms$response_type == 'Mean Conc.',],aes(slope=slope,intercept=0))+
-      facet_grid(.~comp_level,scales='free_y')+
-      ylab("Cell Concentration")+
+      facet_grid(.~counting_method,scales='free_y')+
+      ylab("Mean Cell Concentration (cells/mL)")+
       xlab("Dilution Fraction")+
       theme_bw()+
       ggtitle("Mean Cell Concentration vs. Dilution Fraction")+
-      theme(plot.title = element_text(hjust = 0.5,size=15)) +
-      guides(color=FALSE)
+      theme(plot.title = element_text(hjust = 0.5,size=15))
     
-    overview.plot = overview.plot + coord_cartesian(ylim=c(0, max(overview.plot$data$y)))
     
     # residual plot
     residual_inds = grepl('resid',data.for.plot$response_type,ignore.case = TRUE)
@@ -159,7 +162,8 @@ calc.metrics<-function(dat,var_func,smooth_df,plot.bool=TRUE,factor_to_compare=N
       guides(shape=guide_legend(title = "Analyst"))+
       theme_bw()+
       ggtitle("Sample Integrity Over Time")+
-      theme(plot.title = element_text(hjust = 0.5,size=15))
+      theme(plot.title = element_text(hjust = 0.5,size=15)) +
+      scale_size_continuous(breaks=unique(dat$target_dilution_fraction))
     
     if(!is.null(factor_to_compare)){
       # polynomial fit with prediction intervals
@@ -197,7 +201,7 @@ calc.metrics<-function(dat,var_func,smooth_df,plot.bool=TRUE,factor_to_compare=N
     }
     if(is.null(factor_to_compare)){
       overview.plot<-overview.plot+
-        facet_grid(response_type~.,scales="free_y")+
+        #facet_grid(response_type~.,scales="free_y")+
         geom_point()
       
       residual.plot <- residual.plot +
