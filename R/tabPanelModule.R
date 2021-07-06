@@ -92,7 +92,7 @@ tp1Server <- function(id, input_file, Metrics) {
         
         dat = Metrics()$dat
         
-        ggplot(dat, aes(x=measured_dilution_fraction, y=cell_conc, col=factor(stock_solution) )) + 
+        ggplot(dat, aes(x=measured_dilution_fraction, y=cell_conc, col=counting_method )) + 
           geom_point(alpha=.5) +
           facet_wrap(~counting_method) + 
           ggtitle("Raw Data") +
@@ -100,7 +100,7 @@ tp1Server <- function(id, input_file, Metrics) {
           ylab("Cell Concentration (cells/mL)") +
           theme_bw() +
           theme(plot.title = element_text(hjust = 0.5)) +
-          labs(col='Stock Solution')
+          labs(col='Counting Method')
         
       })
       
@@ -136,14 +136,15 @@ tp2UI <- function(id) {
     p(paste("In the plot above, mean cell count is given",
             "for each method, at each dilution fraction.",
             "The vertical bars represent the mean plus/minus 1 standard error",
-            "of the mean (standard deviation / sqrt(# replicate samples).")),
+            "of the mean (standard deviation / sqrt(# replicate samples)).")),
     br(),
     h3("Coefficient of Variation (CV) at each Dilution Fraction"),
     plotOutput(ns("CV_Plot")),
     p(paste("In the plot above, mean percent CV is computed",
             "for each method, at each dilution fraction.",
             "The vertical bars represent the mean percent CV",
-            "plus minus the standard error of the mean CV.")),
+            "plus minus the standard error of the mean CV",
+            "(standard deviation / sqrt(# replicate samples)).")),
     br(),
     h3("Proportionality Constants"),
     plotOutput(ns('prop_const_plot')),

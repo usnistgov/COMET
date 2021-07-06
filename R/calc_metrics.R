@@ -21,7 +21,6 @@ calc.metrics<-function(dat,var_func,smooth_df,plot.bool=TRUE,factor_to_compare=N
                                 concentration_type)%>%
     summarise(pool_cv = mean(sqrt(var_conc)/(mean_conc + .00000001)))
     #summarise(pool_cv=sqrt(sum(((n_conc-1)*(var_conc + .000001))[n_conc>1])/(sum(n_conc[n_conc>1])-1))/(sum(n_conc*mean_conc)/sum(n_conc)))
-
   
   
   if(any(is.na(pooled_cv$pool_cv))){
@@ -119,7 +118,8 @@ calc.metrics<-function(dat,var_func,smooth_df,plot.bool=TRUE,factor_to_compare=N
     rep_dat$stock_solution = factor(rep_dat$stock_solution)
     line_parms$counting_method = line_parms$comp_level
     
-    overview.plot<-ggplot(data=rep_dat,aes(y=mean_conc,x=measured_dilution_fraction,col=stock_solution))+
+    overview.plot<-ggplot(data=rep_dat,aes(y=mean_conc,x=measured_dilution_fraction,
+                                           col=counting_method))+
       geom_point()+
       geom_abline(data=line_parms[line_parms$response_type == 'Mean Conc.',],aes(slope=slope,intercept=0))+
       facet_grid(.~counting_method,scales='free_y')+
@@ -127,7 +127,8 @@ calc.metrics<-function(dat,var_func,smooth_df,plot.bool=TRUE,factor_to_compare=N
       xlab("Dilution Fraction")+
       theme_bw()+
       ggtitle("Mean Cell Concentration vs. Dilution Fraction")+
-      theme(plot.title = element_text(hjust = 0.5,size=15))
+      theme(plot.title = element_text(hjust = 0.5,size=15))+
+      labs(col='Counting Method')
     
     
     # residual plot

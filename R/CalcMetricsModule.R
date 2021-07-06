@@ -5,9 +5,12 @@ metricsUI <- function(id) {
   ns <- NS(id)
   
   tagList(
-    selectInput(ns("na_lab"), label = h4("How are missing values denoted in?"),
+    
+
+    selectInput(ns("na_lab"), label = h4("How are missing values denoted?"),
               choices = c("Blank or indicated with 'NA' (default).",
                           "Other")),
+    
     conditionalPanel(condition="input.na_lab == 'Other'",
                      textInput(ns('na_lab_custom'),label='Enter how missing values are indicated:',
                                value="Missing"),
@@ -15,14 +18,17 @@ metricsUI <- function(id) {
     actionButton(ns("help_na_lab"), "Help"),
     hr(),
     
-    selectInput(ns("var_func"), label = h4("Variance is ..."),
-                choices = c('Proportional to mean (default)','Constant','Custom'), selected = "Proportional to mean (default)"),
+    selectInput(ns("var_func"), label = h4("Variance assumption:"),
+                choices = c('Variance proportional to mean (default)',
+                            'Standard deviation proportional to mean',
+                            'Constant variance'), selected = 'Variance proportional to mean (default)'),
     
     conditionalPanel(
       condition = "input.var_func == 'Custom'",
       textInput(ns('cus_var_func'),label='Variance is proportional to',value='mn^2'), 
       ns = ns
     ),
+    
     actionButton(ns("help_var_func"), "Help"),
     hr(),
 
@@ -145,9 +151,11 @@ metricsServer <- function(id,input_file) {
         
         # note: if 'mn' and '1' are changed, need to update stat analysis tab
         function_body <- switch(input$var_func,
-                                'Proportional to mean (default)' = 'mn',
-                                'Constant' = '1',
-                                'Custom' = input$cus_var_func)
+                                'Variance proportional to mean (default)' = 'mn',
+                                'Constant variance' = '1',
+                                'Standard deviation proportional to mean' = 'mn^2')
+                                #'Custom' = input$cus_var_func)
+
         
         eval(parse(text=paste("var_func<-function(mn)",function_body))) 
         
@@ -160,50 +168,68 @@ metricsServer <- function(id,input_file) {
           n_boot<- 0
         } 
         
-        inFile <- input_file() # input$file1
-        conf_lev<-as.numeric(input$conf_lev)
+        inFile <- input_file() 
+        conf_lev <- as.numeric(input$conf_lev)
         
         if (is.null(inFile)) {
           return(NULL)
         }
         
-        dat <- as.data.frame(readr::read_csv(inFile$datapath))
+        if(grepl('.xlsx$',inFile$datapath)) {
+          
+          dat <- simple_to_gui(readxl::read_excel(inFile$datapath,col_names = FALSE))
+          
+        } else {
+          
+          dat <- as.data.frame(readr::read_csv(inFile$datapath))
+        }
+        
         
         expected_colnames = c('counting_method',
+                              'target_dilution_fraction',
                               'random_sample_number',
                               'stock_extraction',
-                              'target_dilution_fraction',
                               'replicate_sample',
                               'rep_obsv',
                               'analyst',
                               'time_elapsed',
                               'cell_conc')
         
+        optional_colnames = c('measured_dilution_fraction',
+                              'raw_count',
+                              'percent_viable_cells',
+                              'time_elapsed',
+                              'cell_type',
+                              'concentration_type',
+                              'stock_solution',
+                              'starting_soln_conc',
+                              'stock_extraction',
+                              'replicate_sample',
+                              'analyst')
+        
+        for(ii in 1:length(optional_colnames)) {
+          if( is.null(dat[[ optional_colnames[ii] ]]) ) {
+            
+            dat[[ optional_colnames[ii] ]] = NA
+            
+          }
+        }
+        
+
         
         validate(
+          
           need('counting_method' %in% colnames(dat),
                "No column named 'counting_method' detected in dataset."),
           
           need('random_sample_number' %in% colnames(dat),
                "No column named 'random_sample_number' detected in dataset."),
           
-          need('stock_extraction' %in% colnames(dat),
-               "No column named 'stock_extraction' detected in dataset."),
-          
           need('target_dilution_fraction' %in% colnames(dat),
                "No column named 'target_dilution_fraction' detected in dataset."),
           
-          need('replicate_sample' %in% colnames(dat),
-               "No column named 'replicate_sample' detected in dataset."),
-          
           need('rep_obsv' %in% colnames(dat),
                "No column named 'rep_obsv' detected in dataset."),
-          
-          need('analyst' %in% colnames(dat),
-               "No column named 'analyst' detected in dataset."),
-          
-          need('time_elapsed' %in% colnames(dat),
-               "No column named 'time_elapsed' detected in dataset."),
           
           need('cell_conc' %in% colnames(dat),
                "No column named 'cell_conc' detected in dataset."),
@@ -212,50 +238,88 @@ metricsServer <- function(id,input_file) {
                "Too many unique target dilution fractions."),
           
           need(all(is.numeric(dat$random_sample_number)),
-               "Non-numeric values detected in 'random_sample_number' column.")
+               "Non-numeric values detected in 'random_sample_number' column."),
+          
+          need(all(is.numeric(dat$rep_obsv)),
+               "Non-numeric values detected in 'rep_obsv' column."),
+          
+          need(all(is.numeric(dat$cell_conc)),
+               "Non-numeric values detected in 'cell_conc' column."),
+          
+          need(all(is.numeric(dat$target_dilution_fraction)),
+               "Non-numeric values detected in 'target_dilution_fraction' column.")
+          
         )
         
         if(input$na_lab == 'Other') {
           for(ii in 1:length(expected_colnames)) {
             
-            
+            dat[,expected_colnames[ii]][dat[,expected_colnames[ii]] == input$na_lab_custom] = NA
             
           }
         }
-        
 
+        # remove NAs for cell conc
         dat <- dat[dat$counting_method != '',]
         dat <- dat[!is.na(dat$counting_method),]
         dat <- dat[!is.na(dat$cell_conc),]
         dat$cell_conc<-as.numeric(as.character(dat$cell_conc))
         dat$target_dilution_fraction<-as.numeric(as.character(dat$target_dilution_fraction))
         
+        
+        # handle measured/target DF
         mdf = dat$measured_dilution_fraction
         
+        
         if(all(is.na(mdf)) || is.null(mdf) ) {
-          dat$measured_dilution_fraction<-as.numeric(as.character(dat$target_dilution_fraction))
+          dat$measured_dilution_fraction <- as.numeric(as.character(dat$target_dilution_fraction))
           mdf_exists = FALSE
           
         } else {
-          dat$measured_dilution_fraction<-as.numeric(as.character(dat$measured_dilution_fraction))
+          dat$measured_dilution_fraction <- as.numeric(as.character(dat$measured_dilution_fraction))
           mdf_exists = TRUE
           missing_inds = which(is.na(dat$measured_dilution_fraction))
           dat$measured_dilution_fraction[missing_inds] = dat$target_dilution_fraction[missing_inds] 
         }
+        
+        # use rsn for stock_extraction if stock_extraction missing
+        if(sum(!is.na(dat$stock_extraction)) < 3) {
+          dat$stock_extraction = dat$random_sample_number
+        }
           
         
-        dat<-dat%>%arrange(counting_method,
-                           cell_type,
-                           concentration_type,
-                           stock_solution,
-                           target_dilution_fraction,
-                           measured_dilution_fraction,
-                           stock_extraction)
+        if(any(is.na(dat$replicate_sample))) {
+          
+          cms = unique(dat$counting_method)
+          tdfs = unique(dat$target_dilution_fraction)
+          
+          for(ii in 1:length(cms)) {
+            for(jj in 1:length(tdfs)) {
+              
+              inds = dat$counting_method == cms[ii] & dat$target_dilution_fraction == tdfs[jj]
+              
+              if(length(inds) < 1) {
+                next
+              }
+              
+              dat$replicate_sample[inds] = as.integer(factor(dat$random_sample_number[inds]))
+              
+            }
+          }
+        }
+        
+        dat <- dat%>%arrange(counting_method,
+                             cell_type,
+                             concentration_type,
+                             stock_solution,
+                             target_dilution_fraction,
+                             measured_dilution_fraction,
+                             stock_extraction)
         
         
         if(input$smooth_df == 'Default (recommended)') {
           smooth_df <- length(unique(dat$target_dilution_fraction)) - 1
-          #print(smooth_df)
+          
         } else {
           smooth_df <- as.numeric(input$smooth_df_cus)
           validate(
@@ -390,9 +454,6 @@ metricsServer <- function(id,input_file) {
             theme(axis.text.x = element_text(angle = 90, hjust = 1,vjust=.5)) +
             theme(aspect.ratio=1)
 
-          
-          #cv<- filter(metrics$metrics,substr(Metric,1,4)=="pool")
-          #cv$Metric<-as.numeric(gsub("pooled_cv_","",cv$Metric))
           
           se_df = dat %>% 
             group_by(counting_method,target_dilution_fraction,replicate_sample) %>% 

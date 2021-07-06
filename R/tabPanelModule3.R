@@ -5,6 +5,7 @@ tpDilutionUI <- function(id) {
   ns = NS(id)
   tagList(
     br(),
+    textOutput(ns('no_te_col')),
     plotOutput(ns('exp_diff')),
     uiOutput(ns('select_method')),
     br(),
@@ -28,16 +29,47 @@ tpDilutionUI <- function(id) {
   )
 }
 
+
 tpDilutionServer <- function(id,Metrics) {
   moduleServer(
     id,
     function(input,output,session) {
+      
+      output$no_te_col <- renderText({
+
+        req(Metrics()$dat)
+
+        data = Metrics()$dat
+
+        if(is.null(data$time_elapsed)) {
+          return("No time_elapsed or starting_soln_conc column provided.")
+
+        } else if (sum(!is.na(data$time_elapsed) ) < 2){
+          return("'time_elapsed' column either missing or contains too many NAs.")
+          
+        } else if (sum(!is.na(data$starting_soln_conc) ) < 2){
+            return("'starting_soln_conc' column either contains too many NAs.")
+
+
+        } else {
+          return(NULL)
+        }
+
+      })
       
       output$select_method <- renderUI({
         
         req(Metrics()$dat)
         
         dat = Metrics()$dat
+        
+        if(sum(!is.na(dat$time_elapsed)) < 3) {
+          return(NULL)
+        }
+        
+        if(sum(!is.na(dat$starting_soln_conc)) < 3) {
+          return(NULL)
+        }
         
         tagList(
           selectInput(session$ns('which_method'),"Which Method",choices=c('All',unique(dat$counting_method)))
@@ -47,7 +79,15 @@ tpDilutionServer <- function(id,Metrics) {
       
       output$pip_err <- renderPlot({
         
-        data = Metrics()$dat %>% 
+        req(Metrics()$dat)
+        
+        dat = Metrics()$dat
+        
+        if(sum(!is.na(dat$time_elapsed)) < 2) {
+          return(NULL)
+        }
+        
+        data = dat %>% 
           group_by(counting_method,random_sample_number,target_dilution_fraction) %>%
           summarise(mdf = mean(measured_dilution_fraction))
         
@@ -71,48 +111,65 @@ tpDilutionServer <- function(id,Metrics) {
       })
       
       output$exp_diff <- renderPlot({
+        
+        
         if (is.null(Metrics()$dat) || is.null(input$which_method)) {
           return(NULL)
         }
         
         dat = Metrics()$dat
         
-        if(input$which_method == 'All') {
-          p = ggplot(dat,aes(x=time_elapsed,y=cell_conc-starting_soln_conc*target_dilution_fraction,
-                         color=as.factor(rep_obsv),
-                         shape=as.factor(analyst),
-                         size=target_dilution_fraction))+
-            geom_point(alpha=.7)+
-            scale_size_continuous(range = c(2,6)) +
-            geom_hline(yintercept=0)+
-            xlab("Time Elapsed")+
-            ylab("Difference from Expected Concentration")+
-            guides(color=guide_legend(title = "Obs. Rep."))+
-            guides(shape=guide_legend(title = "Analyst"))+
-            theme_bw()+
-            ggtitle("Sample Integrity Over Time")+
-            theme(plot.title = element_text(hjust = 0.5,size=15)) +
-            scale_size_continuous(breaks=unique(dat$target_dilution_fraction)) +
-            facet_grid(counting_method~.)
-          
-        } else {
-          p = ggplot(dat[dat$counting_method == input$which_method,],aes(x=time_elapsed,y=cell_conc-starting_soln_conc*target_dilution_fraction,
-                         color=as.factor(rep_obsv),
-                         shape=as.factor(analyst),
-                         size=target_dilution_fraction))+
-            geom_point(alpha=.7)+
-            scale_size_continuous(range = c(2,6)) +
-            geom_hline(yintercept=0)+
-            xlab("Time Elapsed")+
-            ylab("Difference from Expected Concentration")+
-            guides(color=guide_legend(title = "Obs. Rep."))+
-            guides(shape=guide_legend(title = "Analyst"))+
-            theme_bw()+
-            ggtitle("Sample Integrity Over Time")+
-            theme(plot.title = element_text(hjust = 0.5,size=15)) +
-            scale_size_continuous(breaks=unique(dat$target_dilution_fraction))
+        # if no starting, return null
+        if(sum(!is.na(dat$starting_soln_conc)) < 3) {
+          return(NULL)
         }
         
+        # if no time elapsed, return null
+        if(sum(!is.na(dat$time_elapsed)) < 2) {
+          return(NULL)
+        }
+        
+        if(input$which_method == 'All') {
+          
+          dat = dat
+          
+        } else {
+          
+          dat = dat[dat$counting_method == input$which_method,]
+          
+        }
+          
+        if(sum(!is.na(dat$analyst)) > 2) {
+          
+          p = ggplot(dat,aes(x=time_elapsed,y=cell_conc-starting_soln_conc*target_dilution_fraction,
+                             color=as.factor(rep_obsv),
+                             shape=as.factor(analyst),
+                             size=target_dilution_fraction))
+          
+          p = p + guides(shape=guide_legend(title = "Analyst"))
+          
+        } else {
+          
+          p = ggplot(dat,aes(x=time_elapsed,y=cell_conc-starting_soln_conc*target_dilution_fraction,
+                             color=as.factor(rep_obsv),
+                             size=target_dilution_fraction))
+        }
+          
+        p = p + 
+          geom_point(alpha=.7)+
+          scale_size_continuous(range = c(2,6)) +
+          geom_hline(yintercept=0)+
+          xlab("Time Elapsed")+
+          ylab("Difference from Expected Concentration")+
+          guides(color=guide_legend(title = "Obs. Rep."))+
+          theme_bw()+
+          ggtitle("Sample Integrity Over Time")+
+          theme(plot.title = element_text(hjust = 0.5,size=15)) +
+          scale_size_continuous(breaks=unique(dat$target_dilution_fraction)) +
+          facet_grid(counting_method~.)
+        
+
+      
         print(p)
 
       })
@@ -139,16 +196,26 @@ tpDilutionServer <- function(id,Metrics) {
         
         if(is.null(data$percent_viable_cells)) {
           return(NULL)
+        } else if(sum(!is.na(data$time_elapsed)) < 2) {
+          return(NULL)
+        } else if(sum(!is.na(data$percent_viable_cells)) < 2) {
+          return(NULL)
         }
         
         good_inds = !is.na(data$percent_viable_cell)
         
-        ggplot(data[good_inds,],aes(x=time_elapsed, y=percent_viable_cells, color=counting_method)) + 
+        p = ggplot(data[good_inds,],aes(x=time_elapsed, y=percent_viable_cells, color=counting_method)) + 
           geom_point() + 
-          facet_wrap(~stock_solution) +
           geom_smooth(method='lm',se=FALSE) +
           xlab("Time Elapsed") +
           ylab("% Viable")
+        
+        if(any(is.na(data$stock_solution))) {
+          return(p)
+          
+        } else{
+          return(p + facet_wrap(~stock_solution))
+        }
         
       })
       
@@ -157,6 +224,12 @@ tpDilutionServer <- function(id,Metrics) {
         data = Metrics()$dat
         
         if(is.null(data$percent_viable_cells)) {
+          return(NULL)
+          
+        } else if(sum(!is.na(data$time_elapsed)) < 2) {
+          return(NULL)
+          
+        } else if(sum(!is.na(data$percent_viable_cells)) < 2) {
           return(NULL)
         }
         
@@ -185,6 +258,7 @@ tpDilutionServer <- function(id,Metrics) {
   
   
 }
+
 
 tpViabilityUI <- function(id) {
   ns = NS(id)
@@ -220,6 +294,7 @@ tpViabilityUI <- function(id) {
   )
 }
 
+
 tpViabilityServer <- function(id,Metrics) {
   moduleServer(
     id,
@@ -232,10 +307,10 @@ tpViabilityServer <- function(id,Metrics) {
         data = Metrics()$dat
 
         if(is.null(data$percent_viable_cells)) {
-          return("No viability information was provided.")
+          return("No precent_viable_cells column provided.")
 
         } else if (sum(!is.na(data$percent_viable_cells) ) < 2){
-          return("'percent_viable_cells column' contains no observed values.")
+          return("'percent_viable_cells column' either contains NAs or too few observed values.")
 
         } else {
           return(NULL)
@@ -248,6 +323,9 @@ tpViabilityServer <- function(id,Metrics) {
         data = Metrics()$dat
         
         if(is.null(data$percent_viable_cells)) {
+          return(NULL)
+       
+        } else if (sum(!is.na(data$percent_viable_cells) ) < 2) {
           return(NULL)
         }
         
@@ -268,6 +346,9 @@ tpViabilityServer <- function(id,Metrics) {
         data = Metrics()$dat
         
         if(is.null(data$percent_viable_cells)) {
+          return(NULL)
+          
+        } else if (sum(!is.na(data$percent_viable_cells) ) < 2) {
           return(NULL)
         }
         
@@ -312,6 +393,9 @@ tpViabilityServer <- function(id,Metrics) {
         
         if(is.null(data$percent_viable_cells)) {
           return(NULL)
+          
+        } else if (sum(!is.na(data$percent_viable_cells) ) < 2) {
+          return(NULL)
         }
         
         good_inds = !is.na(data$percent_viable_cell)
@@ -328,6 +412,9 @@ tpViabilityServer <- function(id,Metrics) {
         data = Metrics()$dat
         
         if(is.null(data$percent_viable_cells)) {
+          return(NULL)
+          
+        } else if (sum(!is.na(data$percent_viable_cells) ) < 2) {
           return(NULL)
         }
         
@@ -355,6 +442,9 @@ tpViabilityServer <- function(id,Metrics) {
         
         if(is.null(data$percent_viable_cells)) {
           return(NULL)
+          
+        } else if (sum(!is.na(data$percent_viable_cells) ) < 2) {
+          return(NULL)
         }
         
         good_inds = !is.na(data$percent_viable_cell)
@@ -380,7 +470,9 @@ tpViabilityServer <- function(id,Metrics) {
         if(is.null(data$percent_viable_cells)) {
           return(NULL)
           
-        } 
+        } else if (sum(!is.na(data$percent_viable_cells) ) < 2) {
+          return(NULL)
+        }
         
         good_inds = !is.na(data$percent_viable_cell)
         
@@ -426,6 +518,9 @@ tpViabilityServer <- function(id,Metrics) {
         
         if(is.null(data$percent_viable_cells)) {
           return(NULL)
+          
+        } else if (sum(!is.na(data$percent_viable_cells) ) < 2) {
+          return(NULL)
         }
         
         good_inds = !is.na(data$percent_viable_cell)
@@ -450,3 +545,5 @@ tpViabilityServer <- function(id,Metrics) {
     }
   )
 }
+
+

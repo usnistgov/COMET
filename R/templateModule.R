@@ -2,12 +2,19 @@ templateUI <- function(id) {
   ns <- NS(id)
   tagList(
     
-    h4("Template Files"),
-    downloadButton(ns('file1'), 'GUI Instructions'),
-    downloadButton(ns('file2'), 'Simple Template Example'),
-    downloadButton(ns('file3'), 'Full Template Example'),
-    downloadButton(ns('file4'), 'Simple Template'),
-    downloadButton(ns('file5'), 'Full Template')
+    selectInput(ns("which_template_file"),label="Download Instructions or Template Files (optional)",
+                choices=list("Readme File"='rm',
+                             "Full Template (empty)"='ft',
+                             "Shiny App GUI Instructions and Template"='inst',
+                             "Full Template Example 1"='fte1',
+                             "Full Template Example 2"='fte2',
+                             "Full Template Example 3"='fte3',
+                             "Simple Template (empty)"='st',
+                             "Simple Template Example"='ste') ),
+    downloadButton(ns('the_file'), 'Download Selected File'),
+    br(),
+    br(),
+    br()
     
   )
 }
@@ -17,14 +24,31 @@ templateServer <- function(id) {
     id,
     function(input, output, session) {
       
-      f1 = 
-      
-      output$file1 <- downloadHandler(
+      output$the_file <- downloadHandler(
         filename = function() {
-          paste('Shiny App GUI Instructions and Data Template_v_061621.xlsx')
+          switch(input$which_template_file,
+                 'rm'="COMET_readme.xlsx",
+                 'ft'="Full_Data_Template_COMET.csv",
+                 'inst'="Shiny App GUI Instructions and Data Template.xlsx",
+                 'fte1'="Full_Template_Example_1_COMET.csv",
+                 'fte2'="Full_Template_Example_2_COMET.csv",
+                 'fte3'="Full_Template_Example_3_COMET.csv",
+                 'st'="Simple_Data_Template_COMET.xlsx",
+                 'ste'="Simple Template Example 1 COMET.xlsx")
         },
         content = function(file) {
-          file.copy('other/Shiny App GUI Instructions and Data Template_v_061621.xlsx', file)
+          
+          fname = switch(input$which_template_file,
+                         'rm'="other/COMET READ ME FILE v 20210622_LP.xlsx",
+                         'ft'="other/Full_Data_Template_COMET.csv",
+                         'inst'="other/Shiny App GUI Instructions and Data Template_v_061621.xlsx",
+                         'fte1'="other/Full_Template_Example_1_COMET.csv",
+                         'fte2'="other/Full_Template_Example_2_COMET.csv",
+                         'fte3'="other/Full_Template_Example_3_COMET.csv",
+                         'st'="other/Simple_Data_Template_COMET.xlsx",
+                         'ste'="other/Simple Template Example 1 COMET.xlsx")
+          
+          file.copy(fname, file)
         }
       )
       

@@ -413,7 +413,7 @@ tp7Server <- function(id, Metrics) {
           
         
         for(var in c('Ratio','lower','upper')) {
-          outdf[,var] = sapply(outdf[,var],round_or_truncate,3)
+          outdf[,var] = sapply(outdf[,var],signif,5)
         }
         
         outdf$sig = c('no','yes')[as.numeric( (1 < outdf$lower) | (outdf$upper < 1)) + 1 ]

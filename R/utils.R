@@ -240,3 +240,128 @@ find_ranges<-function(y,x,var_func,degree,new_x=1:100/100){
   return(data.frame(new_x=new_x,top=top,bottom=bottom))
 }
 
+
+
+reformat_data = function(data){ 
+  number_datasets = (nrow(data)+1)/10
+  
+  datasets = list()
+  method_names = rep("",number_datasets)
+  
+  for(ii in 1:number_datasets) {
+    inds = ((ii-1)*10+1):((ii)*10-1)
+    t_data = data[inds,]
+    method_names[ii] = t_data[1,2]
+    datasets[[ii]] = as.data.frame(lapply(t_data[4:9,],as.numeric))
+    colnames(datasets[[ii]]) = c('target_dilution_fraction',as.character(1:6))
+    datasets[[ii]] = datasets[[ii]] %>% pivot_longer(!target_dilution_fraction,
+                                                     names_to = 'rep',
+                                                     values_to = 'cell_conc')
+    
+    datasets[[ii]]$stock_solution = ii
+    datasets[[ii]]$cell_type = 'cell_type'
+    datasets[[ii]]$concentration_type = 'total_cell_conc'
+    datasets[[ii]]$analyst = 1
+    datasets[[ii]]$counting_method = unlist(method_names[ii])
+    datasets[[ii]]$raw_count = NA
+    datasets[[ii]]$time_elapsed = NA
+    datasets[[ii]]$measured_dilution_fraction = NA
+    datasets[[ii]]$random_sample_number = rep(1:12,each=3)
+    datasets[[ii]]$stock_extraction = datasets[[ii]]$random_sample_number + (ii-1)*12
+    datasets[[ii]]$replicate_sample = rep(rep(c(1,2),each=3),6)
+    datasets[[ii]]$rep_obsv = rep(1:3,12)
+    
+    cc = datasets[[ii]]$cell_conc[datasets[[ii]]$target_dilution_fraction > .999]
+    datasets[[ii]]$starting_soln_conc = mean(cc)
+    
+  }
+  
+  full_data = as.data.frame(bind_rows(datasets))
+  
+  full_data$rep = NULL
+  
+  return(full_data)
+  
+}
+
+process_method = function(data,starting_index) {
+  
+  df_spots = 10
+  num_rep_obsv = 5
+  num_replicate_samples = 5
+  
+  t_total_rows = df_spots*num_replicate_samples*num_rep_obsv
+  
+  t_data = data.frame(counting_method = rep(NA,t_total_rows),
+                      target_dilution_fraction = NA,
+                      random_sample_number = NA,
+                      rep_obsv = NA,
+                      cell_conc = NA)
+  
+  counter = 1
+  t_random_sample_number = 0
+  row_inds = (starting_index + 2):(starting_index + 2 + df_spots - 1)
+  
+  for(ii in 1:length(row_inds)) {
+    
+    for(jj in 1:num_replicate_samples) {
+      col_inds = 1:num_rep_obsv + (jj-1)*num_rep_obsv + 1
+      t_random_sample_number = t_random_sample_number + 1
+      
+      for(kk in 1:length(col_inds)) {
+        
+        if(is.na( data[ row_inds[ii],col_inds[kk] ])) {
+          counter = counter + 1
+          next
+        }
+        
+        t_data$cell_conc[counter] = as.numeric(data[ row_inds[ii] , col_inds[kk] ])
+        t_data$target_dilution_fraction[counter] = as.numeric(data[ row_inds[ii],1])
+        t_data$random_sample_number[counter] = as.numeric(t_random_sample_number)
+        t_data$rep_obsv[counter] = as.numeric(kk)
+        t_data$counting_method[counter] = as.character(data[starting_index,1])
+        
+        counter = counter + 1
+        
+      }
+    }
+  }
+  
+  t_data = t_data[!is.na(t_data$cell_conc),]
+  t_data$random_sample_number = as.integer(factor(t_data$random_sample_number))
+  
+  
+  return(as.data.frame(t_data))
+  
+}
+
+simple_to_gui = function(data) {
+  
+  method_starts = grep('method',data$...1,ignore.case = T)
+  method_starts = method_starts[method_starts > 3]
+  
+  lod = as.list(rep(0,length(method_starts)))
+  names(lod) = as.character(1:length(lod))
+  
+  for(ii in 1:length(method_starts)) { 
+    
+    # if all missing values in the first 
+    lod[[as.character(ii)]] = process_method(data,method_starts[ii])
+    
+  }
+  
+  the_names = names(lod)
+  
+  for(ii in 1:length(the_names)) {
+    
+    if(nrow(lod[[ the_names[ii] ]]) < 1) {
+      lod[[ the_names[ii] ]] = NULL
+    }
+    
+  }
+  
+  big_d = dplyr::bind_rows(lod)
+  
+  return(big_d)
+  
+}

@@ -29,9 +29,14 @@ ui<-shinyUI(fluidPage(theme=shinytheme('spacelab'),
   fluidRow(
   
     sidebarPanel(
-      fileInput('file1', 'Choose .csv File', accept='.csv'),
-      
-      #templateUI('template_files'),
+      p("Welcome to the Counting Method Evalution Tool.",
+        "Begin by uploading your dataset in the proper format,",
+        "and then selecting the desired options for analysis.",
+        "We have also provided a readme, app instrutions, blank template files,",
+        "as well as template examples for download, if desired."),
+      br(),
+      templateUI('template_files'),
+      fileInput('file1', 'Upload .csv (full template) or .xlsx (simple template) file', accept=c('.csv','.xlsx')),
       
       metricsUI('metrics'),
       br(),
@@ -41,11 +46,16 @@ ui<-shinyUI(fluidPage(theme=shinytheme('spacelab'),
       hr(),
       hr(),
       hr(),
-      h6(paste("Code:", sample(c("Steve Lund and David Newton","David Newton and Steve Lund"),1))),
-      h6("Technical Contacts: Sumona Sarkar and Laura Pierce"),
-      h6("National Institute of Standards and Technology"),
-      hr(),
-      h6("Contact david.newton@nist.gov regarding any bugs.")
+      h5("Technical Consultants/Contacts:"),
+      tags$ul(
+        tags$li("Sumona Sarker (sumona.sarkar@nist.gov)"), 
+        tags$li("Laura Pierce (laura.pierce@nist.gov)")
+      ),
+      h5("Software Authors/Contacts:"),
+      tags$ul(
+        tags$li("David Newton (david.newton@nist.gov)"),
+        tags$li("Steve Lund")
+      ),
     ), # end sidebar
 
     mainPanel( tabsetPanel(
@@ -89,7 +99,7 @@ server<-function(input, output, session) {
   input_file <- reactive(input$file1)
   Metrics <- metricsServer('metrics', input_file)
   downloadServer('download', input_file, Metrics)
-  #templateServer('template_files')
+  templateServer('template_files')
   tp1Server('tp1', input_file, Metrics)
   tp2Server('tp2', input_file, Metrics)
   tp3Server('tp3', input_file, Metrics)
