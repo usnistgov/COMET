@@ -35,8 +35,9 @@ ui<-shinyUI(fluidPage(theme=shinytheme('spacelab'),
         "We have also provided a readme, app instrutions, blank template files,",
         "as well as template examples for download, if desired."),
       br(),
+      br(),
       templateUI('template_files'),
-      fileInput('file1', 'Upload .csv (full template) or .xlsx (simple template) file', accept=c('.csv','.xlsx')),
+      fileInput('file1', 'Upload .csv (full template) or .xlsx (simple template) file for analysis.', accept=c('.csv','.xlsx')),
       
       metricsUI('metrics'),
       br(),
@@ -48,7 +49,7 @@ ui<-shinyUI(fluidPage(theme=shinytheme('spacelab'),
       hr(),
       h5("Technical Consultants/Contacts:"),
       tags$ul(
-        tags$li("Sumona Sarker (sumona.sarkar@nist.gov)"), 
+        tags$li("Sumona Sarkar (sumona.sarkar@nist.gov)"), 
         tags$li("Laura Pierce (laura.pierce@nist.gov)")
       ),
       h5("Software Authors/Contacts:"),
@@ -56,6 +57,11 @@ ui<-shinyUI(fluidPage(theme=shinytheme('spacelab'),
         tags$li("David Newton (david.newton@nist.gov)"),
         tags$li("Steve Lund")
       ),
+      br(),
+      p("Disclaimer: This application is hosted using Shinyapps.io (which uses AWS).",
+        "Shinyapps.io runs applications in their own protected environments",
+        "with encrypted SSL connection. The application is currently pending",
+        "NIST security approval."),
     ), # end sidebar
 
     mainPanel( tabsetPanel(

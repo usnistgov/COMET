@@ -24,7 +24,8 @@ tp5UI <- function(id) {
     #h3('Other Diagnostic Metrics',align='center'),
     br(),
     #DT::dataTableOutput(ns('table5')), # plots non 'smoothed' metrics
-    br() 
+    br(),
+    downloadButton(ns('downloadData'),"Download All Tables")
   )
 }
 
@@ -34,8 +35,7 @@ tp5Server <- function(id, input_file, Metrics){
     function(input,output,session) {
       req(Metrics,input_file)
       
-      
-      output$table1 <- DT::renderDataTable({
+      table1 = reactive({
         
         out_df <- Metrics()$metrics %>% 
           dplyr::select(counting_method, Metric, Value, lower, upper) %>%
@@ -64,12 +64,17 @@ tp5Server <- function(id, input_file, Metrics){
         out_df$`Std Err` = signif(out_df$`Std Err`,5)
         
         out_df
-  
+        
+      })
+      
+      output$table1 <- DT::renderDataTable({
+        
+        table1()
         
       },options=list(searching=FALSE))
       
       
-      output$table2 <- DT::renderDataTable({
+      table2 = reactive({
         
         out_df <- Metrics()$metrics %>% 
           dplyr::select(counting_method, Metric, Value, lower, upper) %>%
@@ -85,10 +90,16 @@ tp5Server <- function(id, input_file, Metrics){
         
         out_df
         
+      })
+      
+      output$table2 <- DT::renderDataTable({
+        
+        table2()
+        
       },options=list(searching=FALSE))
       
       
-      output$table3 <- DT::renderDataTable({
+      table3 = reactive({
         
         out_df <- Metrics()$metrics %>% 
           as.data.frame() %>%
@@ -104,10 +115,16 @@ tp5Server <- function(id, input_file, Metrics){
         
         out_df
         
+      })
+      
+      output$table3 <- DT::renderDataTable({
+        
+        table3()
+        
       },options=list(searching=FALSE))
       
       
-      output$table4 <- DT::renderDataTable({
+      table4 = reactive({
         
         out_df <- Metrics()$metrics %>% 
           as.data.frame() %>%
@@ -123,10 +140,16 @@ tp5Server <- function(id, input_file, Metrics){
         
         out_df
         
+      })
+      
+      output$table4 <- DT::renderDataTable({
+        
+        table4()
+        
       },options=list(searching=FALSE))
       
       
-      output$table5 <- DT::renderDataTable({
+      table5 = reactive({
         
         out_df <- Metrics()$metrics %>% 
           as.data.frame() %>%
@@ -143,7 +166,38 @@ tp5Server <- function(id, input_file, Metrics){
         
         out_df
         
+      })
+      output$table5 <- DT::renderDataTable({
+        
+        table5()
+        
       },options=list(searching=FALSE))
+      
+      
+      output$downloadData = downloadHandler(
+        filename = function() {
+          return("Metrics_Tables.csv")
+        },
+        
+        content = function(file) {
+          
+          cat("Mean cell concentration for each dilution fraction \n",file=file)
+          write.table(table1(),file=file,append=TRUE,row.names = FALSE,sep=',')
+          cat("\n",file=file,append=TRUE)
+          
+          cat("Mean %CV for each dilution fraction \n",file=file,append=TRUE)
+          write.table(table2(),file=file,append=TRUE,row.names = FALSE,sep=',')
+          cat("\n",file=file,append=TRUE)
+          
+          cat("R squared for proportional model fit \n",file=file,append=TRUE)
+          write.table(table3(),file=file,append=TRUE,row.names = FALSE,sep=',')
+          cat("\n",file=file,append=TRUE)
+          
+          cat("Proportionality Indices for model fit \n",file=file,append=TRUE)
+          write.table(table4(),file=file,append=TRUE,row.names = FALSE,sep=',')
+          
+        }
+      )
      
       
     })
@@ -155,7 +209,7 @@ tp6UI <- function(id) {
   tagList(
     withMathJax(),
     br(),
-    h3("Statistical Modelling Details",align='center'),
+    h3("Statistical Modeling Details",align='center'),
     br(),
     p('In the following equations, the subscript \\( i \\) represents
       the index for the target dilution fraction, and \\( j \\) represents 
@@ -297,15 +351,15 @@ tp7UI <- function(id) {
     br(),
     DT::dataTableOutput(ns('comparison_table')),
     br(),
-    h3("Method Precision Plots",align = 'center'),
+    h3("Disrimination and Precision Plots",align = 'center'),
     br(),
     plotOutput(ns('method_precision_plot')),
     br(),
     p('The above plot uses the fitted flexible model to estimate',
-      'the range of instrument readings that could plausibly be seen',
-      'at a given true dilution fraction. For example, at the x-axis',
-      'value of 0.50, the vertical range on the y-axis is an estimate of the typical range',
-      'expected for a replicate observation measurement for the given instrument.',
+      'the range of instrument readings that could pluasibly have generated',
+      'the observed reading at the dilution fraction on the x-axis. For example, at the x-axis',
+      'value of 0.50, the vertical range on the y-axis gives the range of dilution',
+      'fractions that could have generated the cell count observed (or predicted) at 0.50.',
       'The range is computed by gathering all target (or measured) DF values',
       'whose prediction intervals contain the cell count corresponding to the desired',
       'dilution fraction.'),
@@ -314,7 +368,9 @@ tp7UI <- function(id) {
     br(),
     p('The above plot shows the flexible model prediction intervals, minus the',
       'flexible model predicted mean. The plot visualizes the',
-      'precision of a counting method (using the flexible model), irrespective of proportionality.'),
+      'precision of a counting method (using the flexible model), irrespective of proportionality.',
+      'Recall that the flexible model is fitted using the replicate samples',
+      '(which are averaged over the replicate observations).'),
     br(),
     h3("Bias Comparison Table",align = 'center'),
     br(),
@@ -376,9 +432,9 @@ tp7Server <- function(id, Metrics) {
           geom_line(aes(x=x,y=bottom,color=comp_level)) +
           geom_line(aes(x=x,y=top,color=comp_level)) +
           geom_abline(slope=1,intercept=0,linetype='dashed') +
-          ylab('Instrument Dilution Fraction Range') +
-          xlab('Dilution Fraction') + 
-          ggtitle("Dilution Fraction Range Sensitivity")
+          ylab('Dilution Fraction Range') +
+          xlab('Input Sample Dilution Fraction') + 
+          ggtitle("Discrimination Bands")
         
         print(p)
       })
@@ -394,10 +450,11 @@ tp7Server <- function(id, Metrics) {
         ggplot(df_for_poly,aes(x=x,col=comp_level)) + 
           geom_line(aes(y=lwr-y),linetype='dashed') +
           geom_line(aes(y=upr-y),linetype='dashed') +
-          ylab("Prediction Bound - Predicted Count") +
+          ylab("Expected Deviation (cells/ml)") +
           xlab("Dilution Fraction") +
           geom_hline(yintercept = 0,linetype='dashed') +
-          theme(legend.title = element_blank())
+          theme(legend.title = element_blank()) +
+          ggtitle("Precision Range")
       })
       
       

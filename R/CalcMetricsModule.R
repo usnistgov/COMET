@@ -5,7 +5,6 @@ metricsUI <- function(id) {
   ns <- NS(id)
   
   tagList(
-    
 
     selectInput(ns("na_lab"), label = h4("How are missing values denoted?"),
               choices = c("Blank or indicated with 'NA' (default).",
@@ -77,7 +76,8 @@ metricsUI <- function(id) {
                        selected = 8),
     actionButton(ns("help_pis"),"Help"),
     hr(),
-    hr(),
+    #checkboxInput(ns('log_scale'),'Use Log Dilution Fraction?',value=FALSE),
+    #hr(),
     actionButton(ns("goButton"), "Run Analysis")
   )
 
@@ -152,12 +152,14 @@ metricsServer <- function(id,input_file) {
         # note: if 'mn' and '1' are changed, need to update stat analysis tab
         function_body <- switch(input$var_func,
                                 'Variance proportional to mean (default)' = 'mn',
-                                'Constant variance' = '1',
+                                'Constant variance' = 'rep(1,length(mn))',
                                 'Standard deviation proportional to mean' = 'mn^2')
-                                #'Custom' = input$cus_var_func)
-
+                                #'Custom' = input$cus_var_func
         
-        eval(parse(text=paste("var_func<-function(mn)",function_body))) 
+        eval(parse(text=paste("var_func<-function(mn)",function_body)))
+        
+        #log_scale = input$log_scale
+        log_scale = FALSE
         
         n_boot <- switch(input$n_boot,
                          '50 (test run)' = 50,
@@ -175,14 +177,32 @@ metricsServer <- function(id,input_file) {
           return(NULL)
         }
         
+        # read file
         if(grepl('.xlsx$',inFile$datapath)) {
           
-          dat <- simple_to_gui(readxl::read_excel(inFile$datapath,col_names = FALSE))
+          dat <- tryCatch({
+            simple_to_gui(readxl::read_excel(inFile$datapath,col_names = FALSE))
+          }, error = function(e) { 
+            return(data.frame())
+          })
           
         } else {
           
-          dat <- as.data.frame(readr::read_csv(inFile$datapath))
+          dat <- tryCatch({
+            as.data.frame(readr::read_csv(inFile$datapath))
+          }, error = function(e) {
+            return(data.frame())
+          })
+          
         }
+        
+        # validation/error checking
+        validate(
+          need(nrow(dat) > 1,
+               paste("Error in reading file.",
+                     "Make sure uploaded file matches the",
+                     "format and extension of the desired template file."))
+        )
         
         
         expected_colnames = c('counting_method',
@@ -287,7 +307,7 @@ metricsServer <- function(id,input_file) {
           dat$stock_extraction = dat$random_sample_number
         }
           
-        
+        # create replicate sample if missing
         if(any(is.na(dat$replicate_sample))) {
           
           cms = unique(dat$counting_method)
@@ -315,7 +335,7 @@ metricsServer <- function(id,input_file) {
                              target_dilution_fraction,
                              measured_dilution_fraction,
                              stock_extraction)
-        
+
         
         if(input$smooth_df == 'Default (recommended)') {
           smooth_df <- length(unique(dat$target_dilution_fraction)) - 1
@@ -346,7 +366,8 @@ metricsServer <- function(id,input_file) {
 
         
         #### If there's more than one comparison factor, shut off plots
-        metrics<-calc.metrics(dat,var_func,smooth_df,plot.bool=n_comparison_facs<2,factor_to_compare)
+        metrics<-calc.metrics(dat,var_func,smooth_df,plot.bool=n_comparison_facs<2,factor_to_compare,
+                              log_scale)
         metrics$metrics$upper<-metrics$metrics$lower<-NULL
         
         withProgress(message = "Running Bootstrap Iterations", value=0, {
@@ -362,7 +383,8 @@ metricsServer <- function(id,input_file) {
                                                     var_func,
                                                     smooth_df,
                                                     plot.bool=FALSE,
-                                                    factor_to_compare)$metrics$Value)
+                                                    factor_to_compare,
+                                                    log_scale)$metrics$Value)
               
               incProgress(1/n_boot, detail = paste("Sample",i,"of",n_boot))
             }
@@ -479,9 +501,13 @@ metricsServer <- function(id,input_file) {
           metrics$means = means
           metrics$cv = cv
           
+          
+          cv$target_dilution_fraction = factor(cv$target_dilution_fraction)
+          means$target_dilution_fraction = factor(means$target_dilution_fraction)
+          
           metrics$cv_plot<-ggplot(cv,aes(y=pcv,
                                          fill=counting_method,
-                                         x=target_dilution_fraction))+
+                                         x=target_dilution_fraction ))+
             geom_col(position="dodge")+
             geom_errorbar(data=cv,
                           aes(x=target_dilution_fraction,ymax=upper,ymin=lower),
@@ -505,6 +531,10 @@ metricsServer <- function(id,input_file) {
             xlab("Dilution Fraction")+
             guides(fill=guide_legend(title = factor_to_compare))+
             theme_bw()
+          
+          if(log_scale) {
+            metrics$means_plot = metrics$means_plot + scale_y_continuous(trans='log10')
+          }
           
             
           metrics$cv_plot<- metrics$cv_plot
@@ -555,6 +585,9 @@ metricsServer <- function(id,input_file) {
         metrics$n_boot<-n_boot
         metrics$conf_level <- conf_lev
         metrics$var_func <- var_func
+        metrics$mdf_exists = mdf_exists
+        metrics$log_scale = log_scale
+        
         return(metrics)
       })
     }

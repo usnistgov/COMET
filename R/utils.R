@@ -12,16 +12,20 @@ void_plot = function(text) {
 
 
 ### Function fitting a proportional model
-prop_fitter<-function(data,var_func){
+prop_fitter<-function(data,var_func,log_scale_fit){
   y=unlist(data$mean_conc)
   x<-unlist(data$measured_dilution_fraction)
   x[is.na(x)]<-unlist(data$target_dilution_fraction)[is.na(x)]
   fit.dat<-data.frame(y=y,x=x)
-  lm(y~x-1,w=unlist(data$n_conc)/var_func(x),data=fit.dat)
+  
+  mod = lm(y~x-1,w=unlist(data$n_conc)/var_func(x),data=fit.dat)
+  
+  return(mod)
+  
 }
 
 ### Function fitting a flexible model
-smooth_fitter<-function(data,var_func,smooth_df){
+smooth_fitter<-function(data,var_func,smooth_df,log_scale_fit){
   y=unlist(data$mean_conc)
   x<-unlist(data$measured_dilution_fraction)
   x[is.na(x)]<-unlist(data$target_dilution_fraction)[is.na(x)]
@@ -31,9 +35,20 @@ smooth_fitter<-function(data,var_func,smooth_df){
   if(is.null(smooth_df)) {
     smooth_df<-length(unique(data$target_dilution_fraction))-1
   }
+  
+  if(log_scale_fit) {
+    
+    fit.dat2<-data.frame(y,poly(log(x),smooth_df,raw=TRUE))
+    smooth_fit<-lm(log(y)~.,w=var_func(x),data=fit.dat2)
+    
+  } else { 
+    
+    fit.dat2<-data.frame(y,poly(x,smooth_df,raw=TRUE))
+    smooth_fit<-lm(y~.,w=1/var_func(x),data=fit.dat2)
+    
+  }
 
-  fit.dat2<-data.frame(y,poly(x,smooth_df,raw=TRUE))
-  smooth_fit<-lm(y~.,w=1/var_func(x),data=fit.dat2)
+  
   # old.means<-0
   # new.means<-predict(smooth_fit)
   # #browser()

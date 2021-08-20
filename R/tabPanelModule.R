@@ -4,13 +4,14 @@ tp1UI <- function(id) {
   ns <- NS(id)
   tagList(
     br(),
+    br(),
     plotOutput(ns("raw_data_plot")),
     br(),
     helpText(descriptions[['tp1_raw_data_plot']]),
     br(),
     plotOutput(ns("data_plot")),
     br(),
-    fluidRow(column(4),column(2,actionButton(ns('flex_mod'),'Toggle Flexible Model',align='center'))),
+    fluidRow(column(4),column(2,actionButton(ns('flex_mod'),'Show Prediction Intervals',align='center'))),
     br(),
     helpText(descriptions[['tp1_data_plot']]),
     br(),
@@ -60,27 +61,62 @@ tp1Server <- function(id, input_file, Metrics) {
         
         the_dfs$lwr = rep(0,nrow(the_dfs))
         the_dfs$upr = rep(0,nrow(the_dfs))
+        the_dfs$fit = rep(0,nrow(the_dfs))
         
         for(ii in 1:nrow(the_dfs)) {
           sub_df = df_for_poly[df_for_poly$comp_level == the_dfs$counting_method[ii],]
           the_dfs$lwr[ii] = sub_df$lwr[which.min(abs(the_dfs$mean_mdf[ii] - sub_df$x))]
           the_dfs$upr[ii] = sub_df$upr[which.min(abs(the_dfs$mean_mdf[ii] - sub_df$x))]
+          the_dfs$fit[ii] = sub_df$y[which.min(abs(the_dfs$mean_mdf[ii] - sub_df$x))]
         }
         
         overview.plot = overview.plot + ylim(0,max(the_dfs$upr))
         
-        #names(the_dfs)[which(names(the_dfs) == 'counting_method')] = 'comp_level'
+        
+        if(Metrics()$log_scale) {
+          
+          slope_vals = Metrics()$metrics %>%
+            filter(Metric == 'Prop.Const.x') %>% 
+            select(counting_method,Value)
+          
+          cms = unique(slope_vals$counting_method)
+          
+          line_data = data.frame(counting_method = rep(cms,each=100),
+                                 x=0)
+          
+          
+          for(ii in 1:length(cms)) {
+            
+            minval = min(dat$target_dilution_fraction[dat$counting_method == cms[ii]])
+            maxval = max(dat$target_dilution_fraction[dat$counting_method == cms[ii]])
+            
+            xvals = exp(seq(log(minval),log(maxval),length.out = 100))
+            
+            t_slope = slope_vals$Value[slope_vals$counting_method == cms[ii]]
+            
+            line_data$x[line_data$counting_method == cms[ii]] = xvals
+            line_data$y[line_data$counting_method == cms[ii]] = xvals*t_slope
+            
+          }
+          
+          overview.plot = overview.plot +
+            scale_x_continuous(trans='log10') +
+            scale_y_continuous(trans='log10') + 
+            geom_line(data=line_data,aes(x=x,y=y),color='black')
+        }
+        
       
         
         if(flexible$show) {
           # add smooth fit and prediction intervals to plot
-          overview.plot<-overview.plot+
-            geom_errorbar(data=the_dfs,aes(x=mean_mdf,ymin=lwr,ymax=upr),color='gray50',width=.025) 
           
-          overview.plot
+          overview.plot<-overview.plot+
+            geom_errorbar(data=the_dfs,aes(x=mean_mdf,ymin=lwr,ymax=upr),color='gray50',width=0) 
+          
+          return(overview.plot)
           
         } else {
-          overview.plot 
+          return(overview.plot)
         }
         
       })
@@ -92,7 +128,7 @@ tp1Server <- function(id, input_file, Metrics) {
         
         dat = Metrics()$dat
         
-        ggplot(dat, aes(x=measured_dilution_fraction, y=cell_conc, col=counting_method )) + 
+        p = ggplot(dat, aes(x=measured_dilution_fraction, y=cell_conc, col=counting_method )) + 
           geom_point(alpha=.5) +
           facet_wrap(~counting_method) + 
           ggtitle("Raw Data") +
@@ -102,13 +138,30 @@ tp1Server <- function(id, input_file, Metrics) {
           theme(plot.title = element_text(hjust = 0.5)) +
           labs(col='Counting Method')
         
+        if(Metrics()$log_scale) {
+          p = p + 
+            scale_x_continuous(trans='log10') +
+            scale_y_continuous(trans='log10')
+        }
+        
+        return(p)
+        
       })
       
       output$residual_plot <- renderPlot({
         if(is.null(input_file())) {
           return(NULL)
         }
-        print(Metrics()$residual.plot)
+        
+        p = Metrics()$residual.plot
+        
+        if(Metrics()$log_scale) {
+          p = p + 
+            scale_x_continuous(trans='log10')
+        }
+        
+        p
+        
       })
       
     }
@@ -127,8 +180,9 @@ tp2UI <- function(id) {
     br(),
     h3("Proportionality Indices"),
     plotOutput(ns("Metrics_Plot"), height = "600px"),
-    p('The plot above gives the PI value of each flexible model',
-      'for each counting method. The vertical bars represent bootstrap confidence',
+    p('The plot above gives the PI value',
+      'for each counting method, using the desired flexible model.',
+      'The vertical bars represent bootstrap confidence',
       'intervals computed at the requested confidence level.'),
     br(),
     h3("Mean Concentration vs. Dilution Fraction"),
@@ -184,16 +238,22 @@ tp2Server <- function(id, input_file, Metrics) {
         if(is.null(input_file() )) {
           return(NULL)
         }
+        
+        p = Metrics()$means_plot
+        
           
-        print(Metrics()$means_plot)
+        p
       })
       
       output$CV_Plot <- renderPlot({
         if (is.null(input_file() )) {
           return(NULL)
         }
+        
+        p = Metrics()$cv_plot
+        
+        p
           
-        print(Metrics()$cv_plot)
       })
       
       output$prop_const_plot <- renderPlot({
@@ -244,7 +304,8 @@ tp3UI <- function(id) {
     h3('Number of Replicate Observations per Sample',align='center'),
     br(),
     DT::dataTableOutput(ns('table4')),
-    br()
+    br(),
+    downloadButton(ns("downloadData"),"Download All Tables")
   )
 }
 
@@ -252,10 +313,11 @@ tp3Server <- function(id, input_file, Metrics){
   moduleServer(
     id,
     function(input,output,session) {
-      req(Metrics,input_file)
       
       
-      output$table1 <- DT::renderDataTable({
+      table1 = reactive({
+        
+        req(Metrics,input_file)
         methods = unique(Metrics()$dat$counting_method)
         dfs = unique(Metrics()$dat$target_dilution_fraction)
         outdf = matrix(rep(dfs, length(methods)),nrow=length(dfs) )
@@ -265,10 +327,19 @@ tp3Server <- function(id, input_file, Metrics){
         first_col = data.frame(df=first_col)
         outdf = cbind(first_col,outdf)
         outdf
+        
+      })
+      
+      output$table1 <- DT::renderDataTable({
+        
+        return(table1())
+
       },options=list(searching=FALSE,ordering=FALSE))
       
       
-      output$table2 <- DT::renderDataTable({
+      table2 = reactive({
+        
+        req(Metrics,input_file)
         
         outdf = Metrics()$dat %>%
           select(counting_method,replicate_sample,rep_obsv,
@@ -278,11 +349,19 @@ tp3Server <- function(id, input_file, Metrics){
         
         colnames(outdf) = c('Counting_Method','Sample','Obs','Target_df',
                             'Measured_df')
-        outdf
+        return(outdf)
+        
+      })
+      
+      output$table2 <- DT::renderDataTable({
+        
+        return(table2())
+        
       },options=list(searching=FALSE,ordering=FALSE))
       
       
-      output$table3 <- DT::renderDataTable({
+      table3 = reactive({
+        
         # number replicate samples
         outdf = Metrics()$dat %>% 
           select(counting_method,target_dilution_fraction,replicate_sample) %>%
@@ -291,13 +370,22 @@ tp3Server <- function(id, input_file, Metrics){
           tidyr::pivot_wider(names_from=counting_method,values_from=count)
         
         colnames(outdf)[1]='Target DF'
-        outdf
+        
+        return(outdf)
+        
+      })
+      
+      output$table3 <- DT::renderDataTable({
+        
+        return(table3())
+        
       },options=list(searching=FALSE,ordering=FALSE))
       
       
-      output$table4 <- DT::renderDataTable({
+      table4 = reactive({
+        
         # number replicate obs
-
+        
         outdf = Metrics()$dat %>% 
           select(counting_method,target_dilution_fraction,replicate_sample) %>%
           group_by(counting_method,target_dilution_fraction,replicate_sample) %>%
@@ -306,9 +394,43 @@ tp3Server <- function(id, input_file, Metrics){
                              values_fill=0)
         
         colnames(outdf)[1]='Target DF'
-        outdf
+        
+        return(outdf)
+        
+        
+      })
+      
+      output$table4 <- DT::renderDataTable({
+        
+        return(table4())
+        
       },options=list(searching=FALSE,ordering=FALSE))
       
+      
+      output$downloadData = downloadHandler(
+        filename = function() {
+          return("Experimental_Design.csv")
+        },
+        
+        content = function(file) {
+          
+          cat("Methods and Target DFs \n",file=file)
+          write.table(table1(),file=file,append=TRUE,row.names = FALSE,sep=',')
+          cat("\n",file=file,append=TRUE)
+          
+          cat("Pipetting Error \n",file=file,append=TRUE)
+          write.table(table2(),file=file,append=TRUE,row.names = FALSE,sep=',')
+          cat("\n",file=file,append=TRUE)
+          
+          cat("Number of Replicate Samples \n",file=file,append=TRUE)
+          write.table(table3(),file=file,append=TRUE,row.names = FALSE,sep=',')
+          cat("\n",file=file,append=TRUE)
+          
+          cat("Number of Replicate Observations per Sample \n",file=file,append=TRUE)
+          write.table(table4(),file=file,append=TRUE,row.names = FALSE,sep=',')
+          
+        }
+      )
       
     }
     

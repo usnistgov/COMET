@@ -10,7 +10,8 @@ templateUI <- function(id) {
                              "Full Template Example 2"='fte2',
                              "Full Template Example 3"='fte3',
                              "Simple Template (empty)"='st',
-                             "Simple Template Example"='ste') ),
+                             "Simple Template Example"='ste',
+                             "All Files"="all") ),
     downloadButton(ns('the_file'), 'Download Selected File'),
     br(),
     br(),
@@ -27,6 +28,7 @@ templateServer <- function(id) {
       output$the_file <- downloadHandler(
         filename = function() {
           switch(input$which_template_file,
+                 'all'='All_comet_files.zip',
                  'rm'="COMET_readme.xlsx",
                  'ft'="Full_Data_Template_COMET.csv",
                  'inst'="Shiny App GUI Instructions and Data Template.xlsx",
@@ -46,7 +48,8 @@ templateServer <- function(id) {
                          'fte2'="other/Full_Template_Example_2_COMET.csv",
                          'fte3'="other/Full_Template_Example_3_COMET.csv",
                          'st'="other/Simple_Data_Template_COMET.xlsx",
-                         'ste'="other/Simple Template Example 1 COMET.xlsx")
+                         'ste'="other/Simple Template Example 1 COMET.xlsx",
+                         'all'='other/All_comet_files.zip')
           
           file.copy(fname, file)
         }

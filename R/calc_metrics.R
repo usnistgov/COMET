@@ -1,4 +1,5 @@
-calc.metrics<-function(dat,var_func,smooth_df,plot.bool=TRUE,factor_to_compare=NULL){
+calc.metrics<-function(dat,var_func,smooth_df,plot.bool=TRUE,factor_to_compare=NULL,
+                       log_scale){
   
   ### Average across within-sample replicate counts  
   rep_dat <- dat %>% 
@@ -15,28 +16,28 @@ calc.metrics<-function(dat,var_func,smooth_df,plot.bool=TRUE,factor_to_compare=N
     
 
   ### Compute a pooled coefficient of variation at each target dilution fraction
-  pooled_cv<-rep_dat%>%group_by(counting_method,
+  CV<-rep_dat%>%group_by(counting_method,
                                 target_dilution_fraction,
                                 cell_type,
                                 concentration_type)%>%
-    summarise(pool_cv = mean(sqrt(var_conc)/(mean_conc + .00000001)))
-    #summarise(pool_cv=sqrt(sum(((n_conc-1)*(var_conc + .000001))[n_conc>1])/(sum(n_conc[n_conc>1])-1))/(sum(n_conc*mean_conc)/sum(n_conc)))
+    summarise(mean_cv = mean(sqrt(var_conc)/(mean_conc + .00000001)))
+    #summarise(mean_cv=sqrt(sum(((n_conc-1)*(var_conc + .000001))[n_conc>1])/(sum(n_conc[n_conc>1])-1))/(sum(n_conc*mean_conc)/sum(n_conc)))
   
   
-  if(any(is.na(pooled_cv$pool_cv))){
-    pooled_cv2<-dat%>%group_by(
+  if(any(is.na(CV$mean_cv))){
+    CV2<-dat%>%group_by(
       counting_method,
       target_dilution_fraction,
       cell_type,
       concentration_type)%>%
-      summarise(pool_cv=sd(cell_conc,na.rm=TRUE)/mean(cell_conc,na.rm=TRUE))
-    pooled_cv$pool_cv[is.na(pooled_cv$pool_cv)]<-pooled_cv2$pool_cv[is.na(pooled_cv$pool_cv)]
+      summarise(mean_cv=sd(cell_conc,na.rm=TRUE)/mean(cell_conc,na.rm=TRUE))
+    CV$mean_cv[is.na(CV$mean_cv)]<-CV2$mean_cv[is.na(CV$mean_cv)]
   }
   
   
-  pooled_cv<- spread(pooled_cv,target_dilution_fraction,pool_cv)
-  name_sub<-grep("0|1",names(pooled_cv))
-  names(pooled_cv)[name_sub]<-paste0("pooled_cv_",names(pooled_cv)[name_sub])
+  CV<- spread(CV,target_dilution_fraction,mean_cv)
+  name_sub<-grep("0|1",names(CV))
+  names(CV)[name_sub]<-paste0("mean_CV_",names(CV)[name_sub])
   
   ### Compute the mean concentration at each target dilution fraction
   means <- dat %>% group_by(
@@ -56,7 +57,7 @@ calc.metrics<-function(dat,var_func,smooth_df,plot.bool=TRUE,factor_to_compare=N
     group_by(counting_method,
              cell_type,
              concentration_type)%>%
-    do(prop_fit=prop_fitter(.,var_func),smooth_fit=smooth_fitter(.,var_func,smooth_df))
+    do(prop_fit=prop_fitter(.,var_func,log_scale),smooth_fit=smooth_fitter(.,var_func,smooth_df,log_scale))
   
   mets<-fits%>%
     do(mets=metrics(.$prop_fit,.$smooth_fit))
@@ -71,7 +72,7 @@ calc.metrics<-function(dat,var_func,smooth_df,plot.bool=TRUE,factor_to_compare=N
   mets<-data.frame(
     select(fits,one_of(grouping_factors)),
     mets)%>%
-    full_join(pooled_cv,by=grouping_factors)%>%
+    full_join(CV,by=grouping_factors)%>%
     full_join(means,by=grouping_factors)
   
   overview.plot = NULL
@@ -87,18 +88,19 @@ calc.metrics<-function(dat,var_func,smooth_df,plot.bool=TRUE,factor_to_compare=N
       y<-prop_fit$model$y
       x<-prop_fit$model$x
       s.res<-smooth_fit$fitted.values-p.fit
+      
       data.frame(response_type=rep(c("Mean Conc.","Raw Resids","Smth Resids",
                                      "Scl, Smth Resids"),each=length(y)),
                  dilution_fraction=rep(x,4),
-                 y=c(y,p.res,s.res,s.res/sqrt(x) ))
+                 y=c(y,p.res,s.res,s.res/sqrt(abs(x) )))
     }
-
     
     data.for.plot<-fits%>%
       do(mets=plot_data(.$prop_fit,.$smooth_fit))
     
     data.for.plot<-rbind.fill(data.for.plot[[1]])
     line_parms<-fits%>%do(as.data.frame(coef(.$prop_fit)))
+    
     line_parms<-data.frame(slope=c(unlist(line_parms),rep(0,3*nrow(mets))),
                            response_type=rep(c("Mean Conc.","Raw Resids","Smth Resids",
                                                "Scl, Smth Resids"),
@@ -141,7 +143,7 @@ calc.metrics<-function(dat,var_func,smooth_df,plot.bool=TRUE,factor_to_compare=N
     
     residual.plot<-ggplot(data=data.for.plot[residual_inds,],aes(y=y,x=dilution_fraction))+
       geom_abline(data=line_parms[residual_inds_lp,],aes(slope=slope,intercept=0))+
-      ylab("Cell Concentration \n (bottom row scaled by DF)")+
+      ylab("Cell Concentration")+
       xlab("Dilution Fraction")+
       theme_bw() + 
       ggtitle("Residual Plot for Model Fits")+
@@ -171,7 +173,14 @@ calc.metrics<-function(dat,var_func,smooth_df,plot.bool=TRUE,factor_to_compare=N
       xlowerlim = min(dat$target_dilution_fraction)
       xupperlim = max(dat$target_dilution_fraction)
       npreds = 100
-      x = seq(xlowerlim,xupperlim,length.out = npreds)
+      
+      if(log_scale) {
+        x = exp(seq(log(xlowerlim),log(xupperlim),length.out = npreds))
+        
+      } else {
+        x = seq(xlowerlim,xupperlim,length.out = npreds)
+      }
+      
       remove(xlowerlim,xupperlim)
       methods = unique(data.for.plot$comp_level)
       
@@ -182,14 +191,26 @@ calc.metrics<-function(dat,var_func,smooth_df,plot.bool=TRUE,factor_to_compare=N
                                comp_level = factor(rep(methods,each=npreds)))
       
       for(m in 1:length(methods)) {
+        
         mod = fits$smooth_fit[fits$counting_method == methods[m]][[1]] # get the appropriate fitted polynomial model
-        X = poly(x,smooth_df,raw=TRUE)
-        colnames(X) = paste('X',1:ncol(X),sep='') # names need to agree with model coefficient names
-        pred_and_fit = predict(mod,X,interval='prediction',weights=1/var_func(x))
+        
+        if(log_scale) {
+          X = poly(log(x),smooth_df,raw=TRUE)
+          colnames(X) = paste('X',1:ncol(X),sep='') # names need to agree with model coefficient names
+          pred_and_fit = exp(predict(mod,X,interval='prediction',weights=var_func(x)))
+          
+        } else {
+          X = poly(x,smooth_df,raw=TRUE)
+          colnames(X) = paste('X',1:ncol(X),sep='') # names need to agree with model coefficient names
+          pred_and_fit = predict(mod,X,interval='prediction',weights=1/var_func(x))
+        }
+        
         df_for_poly$y[df_for_poly$comp_level == methods[m]] <- pred_and_fit[,'fit']
-        df_for_poly$lwr[df_for_poly$comp_level == methods[m]] <- pred_and_fit[,'lwr']
+        df_for_poly$lwr[df_for_poly$comp_level == methods[m]] <- pmax(pred_and_fit[,'lwr'],rep(1e-10,length(pred_and_fit[,'lwr'])))
         df_for_poly$upr[df_for_poly$comp_level == methods[m]] <- pred_and_fit[,'upr']
+
       }
+      
       
       residual.plot <- residual.plot + 
         geom_point(aes(color=comp_level)) +

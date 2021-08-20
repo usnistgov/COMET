@@ -16,6 +16,8 @@ tpDilutionUI <- function(id) {
       'The toggle button allows the user to choose one method to plot at a time,',
       'or all methods can be viewed simultaneously.'),
     br(),
+    h4("Pipette Error"),
+    textOutput(ns('pip_err_no_mdf')),
     plotOutput(ns('pip_err')),
     br(),
     h4("Viability Over Time Comparison",align='center'),
@@ -72,8 +74,23 @@ tpDilutionServer <- function(id,Metrics) {
         }
         
         tagList(
-          selectInput(session$ns('which_method'),"Which Method",choices=c('All',unique(dat$counting_method)))
+          selectInput(session$ns('which_method'),"Display Method:",choices=c('All',unique(dat$counting_method)))
         )
+        
+      })
+      
+      output$pip_err_no_mdf <- renderText({
+        
+        req(Metrics()$dat)
+        
+        if(!Metrics()$mdf_exists) {
+          return(
+            paste("Pipette Error plot not displayed because no measured",
+                  "dilution fraction was submitted.")
+          )
+        } else {
+          return(NULL)
+        }
         
       })
       
@@ -84,6 +101,10 @@ tpDilutionServer <- function(id,Metrics) {
         dat = Metrics()$dat
         
         if(sum(!is.na(dat$time_elapsed)) < 2) {
+          return(NULL)
+        }
+        
+        if(!Metrics()$mdf_exists) {
           return(NULL)
         }
         
@@ -105,7 +126,6 @@ tpDilutionServer <- function(id,Metrics) {
           geom_abline(slope=1,intercept=0) + geom_label(x=.4,y=.8,label=lab,size=5) +
           ylab("Measured Dilution Fraction") +
           xlab("Target Dilution Fraction") +
-          ggtitle("Pipetting Error") +
           theme(plot.title = element_text(hjust = 0.5,size=15))
         
       })
@@ -279,7 +299,9 @@ tpViabilityUI <- function(id) {
                    "differences between the distributions of the two groups being tested.",
                    "Above, we are testing whether the absolute residuals about the median",
                    "have similar or different spreads.",
-                   "A low p-value indicates evidence that the spreads of the two distributions",
+                   "P-values are displayed on the inside of the table for the KS test",
+                   "between the method given in the corresponding row and column.",
+                   "A p-value below the chosen significance level indicates evidence that the spreads of the two distributions",
                    "are not equivalent.")),
     br(),
     h4("Equivalence of Mean Percent Viable Cells",align='center'),
@@ -307,7 +329,7 @@ tpViabilityServer <- function(id,Metrics) {
         data = Metrics()$dat
 
         if(is.null(data$percent_viable_cells)) {
-          return("No precent_viable_cells column provided.")
+          return("No percent_viable_cells column provided.")
 
         } else if (sum(!is.na(data$percent_viable_cells) ) < 2){
           return("'percent_viable_cells column' either contains NAs or too few observed values.")
@@ -353,6 +375,7 @@ tpViabilityServer <- function(id,Metrics) {
         }
         
         good_inds = !is.na(data$percent_viable_cells)
+        data = data[good_inds,]
         
         if(length(unique(data$counting_method)) == 1) {
           return(NULL)
@@ -385,7 +408,8 @@ tpViabilityServer <- function(id,Metrics) {
       rownames = TRUE, 
       striped = TRUE,
       hover = TRUE,
-      bordered = TRUE)
+      bordered = TRUE,
+      digits=2)
       
       output$hist_plot <- renderPlot({
         
@@ -509,7 +533,8 @@ tpViabilityServer <- function(id,Metrics) {
       rownames = TRUE, 
       striped = TRUE,
       hover = TRUE,
-      bordered = TRUE)
+      bordered = TRUE,
+      digits=3)
       
       
       output$emp_cdf_fct <- renderPlot({
@@ -524,7 +549,6 @@ tpViabilityServer <- function(id,Metrics) {
         }
         
         good_inds = !is.na(data$percent_viable_cell)
-        
         data = data[good_inds,]
         
         data <- data %>%
