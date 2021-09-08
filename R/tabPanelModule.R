@@ -4,6 +4,7 @@ tp1UI <- function(id) {
   ns <- NS(id)
   tagList(
     br(),
+    span(textOutput(ns("insufficient_design")),style='color:Tomato'),
     br(),
     plotOutput(ns("raw_data_plot")),
     br(),
@@ -27,6 +28,17 @@ tp1Server <- function(id, input_file, Metrics) {
   moduleServer(
     id,
     function(input, output, session) {
+      
+      output$insufficient_design <- renderText({
+        
+        if(Metrics()$exp_des_flag) {
+          return(descriptions$design_disclaimer)
+          
+        } else{
+          return(NULL)
+        }
+        
+      })
       
       output$Title <- renderText({
         if (is.null(input_file())) {
@@ -172,6 +184,9 @@ tp1Server <- function(id, input_file, Metrics) {
 tp2UI <- function(id) {
   ns <- NS(id)
   tagList(
+    br(),
+    span(textOutput(ns("insufficient_design")),style='color:Tomato'),
+    br(),
     h3("R Squared"),
     plotOutput(ns("Metrics_Plot_r2"), height = "400px"),
     p('The plot above gives the R-squared value of each flexible model',
@@ -217,6 +232,17 @@ tp2Server <- function(id, input_file, Metrics) {
   moduleServer(
     id,
     function(input, output, session) {
+      
+      output$insufficient_design <- renderText({
+        
+        if(Metrics()$exp_des_flag) {
+          return(descriptions$design_disclaimer)
+          
+        } else{
+          return(NULL)
+        }
+        
+      })
       
       output$Metrics_Plot_r2 <- renderPlot({
         if (is.null(input_file() )) {
@@ -290,6 +316,8 @@ tp3UI <- function(id) {
   ns <- NS(id)
   tagList(
     br(),
+    span(textOutput(ns("insufficient_design")),style='color:Tomato'),
+    br(),
     h3('Methods and Target Dilution Fractions',align='center'),
     br(),
     DT::dataTableOutput(ns('table1')),
@@ -305,7 +333,9 @@ tp3UI <- function(id) {
     br(),
     DT::dataTableOutput(ns('table4')),
     br(),
-    downloadButton(ns("downloadData"),"Download All Tables")
+    downloadButton(ns("downloadData"),"Download All Tables"),
+    br(),
+    br()
   )
 }
 
@@ -313,6 +343,17 @@ tp3Server <- function(id, input_file, Metrics){
   moduleServer(
     id,
     function(input,output,session) {
+      
+      output$insufficient_design <- renderText({
+        
+        if(Metrics()$exp_des_flag) {
+          return(descriptions$design_disclaimer)
+          
+        } else{
+          return(NULL)
+        }
+        
+      })
       
       
       table1 = reactive({
@@ -414,7 +455,11 @@ tp3Server <- function(id, input_file, Metrics){
         
         content = function(file) {
           
-          cat("Methods and Target DFs \n",file=file)
+          if(Metrics()$exp_des_flag) {
+            cat(paste(descriptions$design_disclaimer,'\n\n'),file=file)
+          }
+          
+          cat("Methods and Target DFs \n",file=file,append=TRUE)
           write.table(table1(),file=file,append=TRUE,row.names = FALSE,sep=',')
           cat("\n",file=file,append=TRUE)
           

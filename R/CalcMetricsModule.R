@@ -351,6 +351,35 @@ metricsServer <- function(id,input_file) {
           )
         }
         
+        ## check if experimental design meets recommendation
+        exp_des_flag = FALSE
+        
+        # there needs to exist at least 4 DFs
+        # with at least 3 replicate samples
+        # with at least 3 replicate observations.
+        test_dat = dat %>%
+          group_by(counting_method,replicate_sample,target_dilution_fraction) %>% 
+          summarise(rep_obs_check = n() >= 3)
+        
+        test_dat = test_dat %>% 
+          filter(rep_obs_check)
+        
+        test_dat = test_dat %>%
+          group_by(counting_method,target_dilution_fraction) %>% 
+          summarise(rep_samp_check = n() >= 3)
+        
+        test_dat = test_dat %>%
+          filter(rep_samp_check)
+        
+        test_dat = test_dat %>%
+          group_by(counting_method) %>%
+          summarise(df_check = n() >= 4)
+        
+
+        if(!all(test_dat$df_check)) {
+          exp_des_flag = TRUE
+        }
+        
         
         #### How many comparison factors are there in the dataset?
         grouping_factors<-c("counting_method","cell_type","concentration_type")
@@ -587,6 +616,7 @@ metricsServer <- function(id,input_file) {
         metrics$var_func <- var_func
         metrics$mdf_exists = mdf_exists
         metrics$log_scale = log_scale
+        metrics$exp_des_flag = exp_des_flag
         
         return(metrics)
       })

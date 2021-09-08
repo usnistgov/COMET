@@ -32,5 +32,12 @@ descriptions = list(
                    'that a 10% deviation, say, at two different dilution fractions are',
                    'penalized equally in PI term (generally recommended).',
                    'PIs using squared error penalize large residuals to a greater extent',
-                   'than PIs using absolute error.')
+                   'than PIs using absolute error.'),
+  
+  design_disclaimer = paste("Warning: The data for one or more of the uploaded counting methods \n",
+                            "do not meet the minimum recommended \n",
+                            "experimental design for the ISO 20391-2:2019 standard and \n",
+                            "the COMET analysis package.  Results should be interpreted with caution.\n",
+                            "Additional studies may be needed to characterize and/or compare proportionality \n",
+                            "and/or precision of the counting methods.\n")
 )

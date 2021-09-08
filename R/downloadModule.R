@@ -17,13 +17,17 @@ downloadServer <- function(id, input_file, Metrics) {
         },
         
         content = function(con) {
+          
+          if(Metrics()$exp_des_flag) {
+            cat(paste(descriptions$design_disclaimer,'\n'),file=con)
+          }
           cat(paste("User specified parameters: \n","File name:",input_file()$name,"\n",
                     "var_func<-function(mn)",body(Metrics()$var_func),"\n",
                     "Flexible model was polynomial of order",Metrics()$smooth_df,"\n",
                     "Number of bootstrap iterations conducted:",Metrics()$n_boot,"\n",
                     "Confidence Level:",Metrics()$conf_lev,"\n",
                     "\n","Factor Levels \n"),
-              file=con)
+              file=con,append=TRUE)
           
           dat<-Metrics()$dat
           cat(paste0(colnames(dat)[1:12],": ",

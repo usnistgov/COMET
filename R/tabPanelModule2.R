@@ -5,6 +5,8 @@ tp5UI <- function(id) {
   tagList(
     withMathJax(),
     br(),
+    span(textOutput(ns("insufficient_design")),style='color:Tomato'),
+    br(),
     h3('Mean cell concentration for each dilution fraction',align='center'),
     br(),
     DT::dataTableOutput(ns('table1')),
@@ -25,7 +27,9 @@ tp5UI <- function(id) {
     br(),
     #DT::dataTableOutput(ns('table5')), # plots non 'smoothed' metrics
     br(),
-    downloadButton(ns('downloadData'),"Download All Tables")
+    downloadButton(ns('downloadData'),"Download All Tables"),
+    br(),
+    br()
   )
 }
 
@@ -33,7 +37,17 @@ tp5Server <- function(id, input_file, Metrics){
   moduleServer(
     id,
     function(input,output,session) {
-      req(Metrics,input_file)
+      
+      output$insufficient_design <- renderText({
+        
+        if(Metrics()$exp_des_flag) {
+          return(descriptions$design_disclaimer)
+          
+        } else{
+          return(NULL)
+        }
+        
+      })
       
       table1 = reactive({
         
@@ -181,7 +195,11 @@ tp5Server <- function(id, input_file, Metrics){
         
         content = function(file) {
           
-          cat("Mean cell concentration for each dilution fraction \n",file=file)
+          if(Metrics()$exp_des_flag) {
+            cat(paste(descriptions$design_disclaimer,'\n\n'),file=file)
+          }
+          
+          cat("Mean cell concentration for each dilution fraction \n",file=file,append=TRUE)
           write.table(table1(),file=file,append=TRUE,row.names = FALSE,sep=',')
           cat("\n",file=file,append=TRUE)
           
@@ -208,6 +226,8 @@ tp6UI <- function(id) {
   ns <- NS(id)
   tagList(
     withMathJax(),
+    br(),
+    span(textOutput(ns("insufficient_design")),style='color:Tomato'),
     br(),
     h3("Statistical Modeling Details",align='center'),
     br(),
@@ -249,7 +269,17 @@ tp6Server <- function(id, input_file, Metrics) {
   moduleServer(
     id,
     function(input,output,session) {
-      req(Metrics,input_file)
+      
+      output$insufficient_design <- renderText({
+        
+        if(Metrics()$exp_des_flag) {
+          return(descriptions$design_disclaimer)
+          
+        } else{
+          return(NULL)
+        }
+        
+      })
       
       output$n_boot <- renderText({
         paste('Number of bootstrap iterations conducted:',Metrics()$n_boot)
@@ -347,6 +377,8 @@ tp7UI <- function(id) {
   tagList(
     withMathJax(),
     br(),
+    span(textOutput(ns("insufficient_design")),style='color:Tomato'),
+    br(),
     h3("Comparison Table",align = 'center'),
     br(),
     DT::dataTableOutput(ns('comparison_table')),
@@ -389,7 +421,17 @@ tp7Server <- function(id, Metrics) {
   moduleServer(
     id,
     function(input,output,session) {
-      req(Metrics)
+      
+      output$insufficient_design <- renderText({
+        
+        if(Metrics()$exp_des_flag) {
+          return(descriptions$design_disclaimer)
+          
+        } else{
+          return(NULL)
+        }
+        
+      })
       
       output$method_precision_plot <- renderPlot({
         

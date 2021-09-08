@@ -5,6 +5,8 @@ tpDilutionUI <- function(id) {
   ns = NS(id)
   tagList(
     br(),
+    span(textOutput(ns("insufficient_design")),style='color:Tomato'),
+    br(),
     textOutput(ns('no_te_col')),
     plotOutput(ns('exp_diff')),
     uiOutput(ns('select_method')),
@@ -36,6 +38,17 @@ tpDilutionServer <- function(id,Metrics) {
   moduleServer(
     id,
     function(input,output,session) {
+      
+      output$insufficient_design <- renderText({
+        
+        if(Metrics()$exp_des_flag) {
+          return(descriptions$design_disclaimer)
+          
+        } else{
+          return(NULL)
+        }
+        
+      })
       
       output$no_te_col <- renderText({
 
@@ -284,6 +297,8 @@ tpViabilityUI <- function(id) {
   ns = NS(id)
   tagList(
     br(),
+    span(textOutput(ns("insufficient_design")),style='color:Tomato'),
+    br(),
     h4("Viability Comparison",align='center'),
     textOutput(ns('no_via_col')),
     plotOutput(ns('hist_plot')),
@@ -321,6 +336,17 @@ tpViabilityServer <- function(id,Metrics) {
   moduleServer(
     id,
     function(input,output,session) {
+      
+      output$insufficient_design <- renderText({
+        
+        if(Metrics()$exp_des_flag) {
+          return(descriptions$design_disclaimer)
+          
+        } else{
+          return(NULL)
+        }
+        
+      })
       
       output$no_via_col <- renderText({
         
