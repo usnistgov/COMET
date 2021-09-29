@@ -9,6 +9,6 @@ docker build -t comet .
 ```
 To run the container, run the following command:
 ```
-docker run -d p 3838:3838 comet
+docker run -d -p 3838:3838 comet
 ```
 Then the app should be visible at localhost:3838 (accessed via your web browser).
