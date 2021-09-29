@@ -1,5 +1,5 @@
-# COMET
-R Shiny application for analyzing dilution series cell count data.
+# COMET: Counting Method Evaluation Tool
+R Shiny application for analyzing dilution series data.
 
 The easiest way to run and use COMET is by first installing Docker (https://docs.docker.com/get-docker/).
 
