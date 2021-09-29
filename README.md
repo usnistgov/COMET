@@ -9,6 +9,13 @@ docker build -t comet .
 ```
 To run the container, run the following command:
 ```
-docker run -d -p 3838:3838 comet
+docker run -d -p 3838:3838 --name my_container comet
 ```
-Then the app should be visible at localhost:3838 (accessed via your web browser).
+(-d for 'detached', -p specifies the port mapping, '--name' gives a name to the running container, and 'comet' tells docker which image to build the container from.) Then the app should be visible at localhost:3838 (accessed via your web browser).
+
+To stop and remove the running container, run the following:
+```
+docker rm -f my_container
+```
+
+Alternatively, you can run, stop, and remove the container using the Docker Desktop application.
