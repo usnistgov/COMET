@@ -3,7 +3,7 @@ R Shiny application for analyzing dilution series count data
 
 The easiest way to run and use COMET is by first installing Docker (https://docs.docker.com/get-docker/).
 
-Once Docker is installed, download the COMET repository, and navigate your terminal to the main directory of the project (the same level as Dockerfile). Then, run the following command to build the image:
+Once Docker is installed, download the COMET repository (at github.com/usnistgov/COMET, click 'Code' and then 'Download ZIP'), and navigate your terminal to the main directory of the project (the same level as Dockerfile). Then, run the following command to build the image:
 ```
 docker build -t comet .
 ```
