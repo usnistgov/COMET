@@ -92,9 +92,9 @@ tp5Server <- function(id, input_file, Metrics){
         
         out_df <- Metrics()$metrics %>% 
           dplyr::select(counting_method, Metric, Value, lower, upper) %>%
-          dplyr::filter(grepl('pooled_cv',Metric))
+          dplyr::filter(grepl('mean_CV',Metric))
         
-        out_df$Metric <- gsub('pooled_cv_','',out_df$Metric)
+        out_df$Metric <- gsub('mean_CV_','',out_df$Metric)
         
         for(var in c('Value','lower','upper')) {
           out_df[,var] = round(out_df[,var],3)

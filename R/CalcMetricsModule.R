@@ -266,6 +266,12 @@ metricsServer <- function(id,input_file) {
           need(all(is.numeric(dat$cell_conc)),
                "Non-numeric values detected in 'cell_conc' column."),
           
+          need(length(unique(dat$concentration_type)) == 1,
+               "Application can only analyze 1 concentration type. Please split rows with different concentration types into seperate .csv files."),
+          
+          need(length(unique(dat$cell_type)) == 1,
+               "Application can only analyze 1 cell type. Please split rows with different cell types into seperate .csv files."),
+          
           need(all(is.numeric(dat$target_dilution_fraction)),
                "Non-numeric values detected in 'target_dilution_fraction' column.")
           
@@ -380,17 +386,16 @@ metricsServer <- function(id,input_file) {
           exp_des_flag = TRUE
         }
         
-        
         #### How many comparison factors are there in the dataset?
         grouping_factors<-c("counting_method","cell_type","concentration_type")
         n_compare<-nrow(distinct(dat[,grouping_factors]))
         n_levels<-apply(dat[,grouping_factors],2,function(x)length(unique(x)))
         n_comparison_facs<-sum(n_levels>1)
-        
+      
         #### If there's one comparison factor, identify it
         if(n_comparison_facs==1) factor_to_compare<-grouping_factors[n_levels>1]
-        
-        #### If there's no comparison factor, set to NULL 
+
+        #### If there's no comparison factor, set to NULL
         if(n_comparison_facs==0) factor_to_compare<-'counting_method'
 
         

@@ -66,6 +66,7 @@ tp1Server <- function(id, input_file, Metrics) {
         overview.plot = Metrics()$overview.plot 
         df_for_poly = Metrics()$df_for_poly
         
+        
         the_dfs = dat %>%
           select(measured_dilution_fraction,target_dilution_fraction,counting_method,cell_conc) %>%
           group_by(target_dilution_fraction,counting_method) %>%
