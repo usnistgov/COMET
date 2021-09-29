@@ -1,5 +1,12 @@
 # COMET: Counting Method Evaluation Tool
-R Shiny application for analyzing dilution series count data
+
+COMET (COunting Method Evaluation Tool) is a Shiny App that accepts data in a specific template based on a specified experimental design and conducts statistical analysis, and outputs quality indicators for the cell counting methods as well as additional meta-data important for reporting of results.
+
+COMET is designed to accept data from experimental designs that follow the principles outlined in the ISO standard, "ISO 20391-2:2019 Biotechnology — Cell counting — Part 2: Experimental design and statistical analysis to quantify counting method performance"  The outputs of this app are intended follow the reporting requirements and recommendations of the standard.
+
+----
+
+## Using COMET 
 
 The easiest way to run and use COMET is by first installing Docker (https://docs.docker.com/get-docker/).
 
