@@ -1,5 +1,5 @@
 calc.metrics<-function(dat,var_func,smooth_df,plot.bool=TRUE,factor_to_compare=NULL,
-                       log_scale){
+                       log_scale,cv_estimation=1){
   
   ### Average across within-sample replicate counts  
   rep_dat <- dat %>% 
@@ -16,13 +16,24 @@ calc.metrics<-function(dat,var_func,smooth_df,plot.bool=TRUE,factor_to_compare=N
     
 
   ### Compute a pooled coefficient of variation at each target dilution fraction
-  CV<-rep_dat%>%group_by(counting_method,
-                                target_dilution_fraction,
-                                cell_type,
-                                concentration_type)%>%
-    summarise(mean_cv = mean(sqrt(var_conc)/(mean_conc + .00000001)))
-    #summarise(mean_cv=sqrt(sum(((n_conc-1)*(var_conc + .000001))[n_conc>1])/(sum(n_conc[n_conc>1])-1))/(sum(n_conc*mean_conc)/sum(n_conc)))
   
+  if(cv_estimation == 1) {
+    CV<-rep_dat%>%group_by(counting_method,
+                           target_dilution_fraction,
+                           cell_type,
+                           concentration_type)%>%
+      summarise(mean_cv = mean(sqrt(var_conc)/(mean_conc + .00000001)))
+    
+  } else if(cv_estimation == 2){
+    CV<-rep_dat%>%group_by(counting_method,
+                           target_dilution_fraction,
+                           cell_type,
+                           concentration_type)%>%
+    summarise(mean_cv=sqrt(sum(((n_conc/sum(n_conc))*(var_conc))[n_conc>1]))/(sum(n_conc*mean_conc)/sum(n_conc)))
+    
+  }
+  
+
   
   if(any(is.na(CV$mean_cv))){
     CV2<-dat%>%group_by(

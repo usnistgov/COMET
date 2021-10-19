@@ -196,6 +196,7 @@ metricsServer <- function(id,input_file) {
           
         }
         
+        
         # validation/error checking
         validate(
           need(nrow(dat) > 1,
@@ -235,7 +236,7 @@ metricsServer <- function(id,input_file) {
           }
         }
         
-
+        
         
         validate(
           
@@ -308,10 +309,12 @@ metricsServer <- function(id,input_file) {
           dat$measured_dilution_fraction[missing_inds] = dat$target_dilution_fraction[missing_inds] 
         }
         
+        
         # use rsn for stock_extraction if stock_extraction missing
         if(sum(!is.na(dat$stock_extraction)) < 3) {
           dat$stock_extraction = dat$random_sample_number
         }
+
           
         # create replicate sample if missing
         if(any(is.na(dat$replicate_sample))) {
@@ -402,6 +405,7 @@ metricsServer <- function(id,input_file) {
         #### If there's more than one comparison factor, shut off plots
         metrics<-calc.metrics(dat,var_func,smooth_df,plot.bool=n_comparison_facs<2,factor_to_compare,
                               log_scale)
+        
         metrics$metrics$upper<-metrics$metrics$lower<-NULL
         
         withProgress(message = "Running Bootstrap Iterations", value=0, {
