@@ -13,7 +13,8 @@ calc.metrics<-function(dat,var_func,smooth_df,plot.bool=TRUE,factor_to_compare=N
     summarise(var_conc=var(cell_conc,na.rm=TRUE),   ### variance of replicate cell concentration measurements
               mean_conc=mean(cell_conc,na.rm=TRUE), ### mean cell concentration
               n_conc=sum(!is.na(cell_conc))) ### Number of replicate observations
-    
+
+  
 
   ### Compute a pooled coefficient of variation at each target dilution fraction
   
@@ -24,15 +25,15 @@ calc.metrics<-function(dat,var_func,smooth_df,plot.bool=TRUE,factor_to_compare=N
                            concentration_type)%>%
       summarise(mean_cv = mean(sqrt(var_conc)/(mean_conc + .00000001)))
     
-  } else if(cv_estimation == 2){
+  } else if(cv_estimation == 2) {
+    
     CV<-rep_dat%>%group_by(counting_method,
                            target_dilution_fraction,
                            cell_type,
                            concentration_type)%>%
-    summarise(mean_cv=sqrt(sum(((n_conc/sum(n_conc))*(var_conc))[n_conc>1]))/(sum(n_conc*mean_conc)/sum(n_conc)))
+    summarise(mean_cv=sqrt(sum(((n_conc/sum(n_conc))*(var_conc))))/(sum(n_conc*mean_conc)/sum(n_conc)))
     
-  }
-  
+  } 
 
   
   if(any(is.na(CV$mean_cv))){
