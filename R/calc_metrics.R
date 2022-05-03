@@ -1,6 +1,7 @@
 calc.metrics<-function(dat,var_func,smooth_df,plot.bool=TRUE,factor_to_compare=NULL,
                        log_scale,cv_estimation=1){
   
+  
   ### Average across within-sample replicate counts  
   rep_dat <- dat %>% 
     group_by(counting_method,
@@ -16,14 +17,13 @@ calc.metrics<-function(dat,var_func,smooth_df,plot.bool=TRUE,factor_to_compare=N
 
   
 
-  ### Compute a pooled coefficient of variation at each target dilution fraction
   
   if(cv_estimation == 1) {
     CV<-rep_dat%>%group_by(counting_method,
                            target_dilution_fraction,
                            cell_type,
                            concentration_type)%>%
-      summarise(mean_cv = mean(sqrt(var_conc)/(mean_conc + .00000001)))
+      summarise(mean_cv = sum((n_conc*sqrt(var_conc)/(mean_conc + .00000001)))/sum(n_conc) )
     
   } else if(cv_estimation == 2) {
     
@@ -43,6 +43,7 @@ calc.metrics<-function(dat,var_func,smooth_df,plot.bool=TRUE,factor_to_compare=N
       cell_type,
       concentration_type)%>%
       summarise(mean_cv=sd(cell_conc,na.rm=TRUE)/mean(cell_conc,na.rm=TRUE))
+    
     CV$mean_cv[is.na(CV$mean_cv)]<-CV2$mean_cv[is.na(CV$mean_cv)]
   }
   
@@ -110,7 +111,7 @@ calc.metrics<-function(dat,var_func,smooth_df,plot.bool=TRUE,factor_to_compare=N
     data.for.plot<-fits%>%
       do(mets=plot_data(.$prop_fit,.$smooth_fit))
     
-    data.for.plot<-rbind.fill(data.for.plot[[1]])
+    data.for.plot<-plyr::rbind.fill(data.for.plot[[1]])
     line_parms<-fits%>%do(as.data.frame(coef(.$prop_fit)))
     
     line_parms<-data.frame(slope=c(unlist(line_parms),rep(0,3*nrow(mets))),

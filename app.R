@@ -1,7 +1,4 @@
-library(tidyr)
-library(plyr)
-library(dplyr)
-library(ggplot2)
+library(tidyverse)
 library(shiny)
 library(shinythemes)
 

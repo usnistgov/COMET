@@ -209,11 +209,8 @@ metricsServer <- function(id,input_file) {
         expected_colnames = c('counting_method',
                               'target_dilution_fraction',
                               'random_sample_number',
-                              'stock_extraction',
                               'replicate_sample',
                               'rep_obsv',
-                              'analyst',
-                              'time_elapsed',
                               'cell_conc')
         
         optional_colnames = c('measured_dilution_fraction',
@@ -368,21 +365,21 @@ metricsServer <- function(id,input_file) {
         # with at least 3 replicate observations.
         test_dat = dat %>%
           group_by(counting_method,replicate_sample,target_dilution_fraction) %>% 
-          summarise(rep_obs_check = n() >= 3)
+          summarise(rep_obs_check = (n() >= 3) )
         
         test_dat = test_dat %>% 
           filter(rep_obs_check)
         
         test_dat = test_dat %>%
           group_by(counting_method,target_dilution_fraction) %>% 
-          summarise(rep_samp_check = n() >= 3)
+          summarise(rep_samp_check = ( n() >= 3 ))
         
         test_dat = test_dat %>%
           filter(rep_samp_check)
         
         test_dat = test_dat %>%
           group_by(counting_method) %>%
-          summarise(df_check = n() >= 4)
+          summarise(df_check = (n() >= 4))
         
 
         if(!all(test_dat$df_check)) {
@@ -515,6 +512,7 @@ metricsServer <- function(id,input_file) {
             theme(aspect.ratio=1)
 
           
+          # cv for plotting 
           se_df = dat %>% 
             group_by(counting_method,target_dilution_fraction,replicate_sample) %>% 
             summarise(std_dev = sd(cell_conc),
@@ -524,8 +522,8 @@ metricsServer <- function(id,input_file) {
           
           cv = se_df %>%
             group_by(counting_method,target_dilution_fraction) %>% 
-            summarise(pcv = sum(cv*N/sum(N)),
-                      std_err_cv = sd(cv)/sqrt(n()),
+            summarise(pcv = 100*sum(cv*N/sum(N)),
+                      std_err_cv = 100*sd(cv)/sqrt(n()),
                       upper = pcv + std_err_cv,
                       lower = pcv - std_err_cv)
           
