@@ -1,4 +1,3 @@
-
 library(ggplot2)
 library(dplyr)
 library(readr)
@@ -23,6 +22,13 @@ ui<-shinyUI(fluidPage(theme=shinytheme('spacelab'),
   
   tags$h1(
     "COMET: Counting Method Evaluation Tool"
+  ),
+  
+  HTML(
+    '<head>
+      <link rel="stylesheet" href="https://pages.nist.gov/nist-header-footer/css/nist-combined.css">
+        <script src="https://pages.nist.gov/nist-header-footer/js/nist-header-footer.js" type="text/javascript" defer="defer"></script>
+      </head>'
   ),
   
   br(),
