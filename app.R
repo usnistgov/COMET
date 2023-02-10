@@ -26,9 +26,20 @@ ui<-shinyUI(fluidPage(theme=shinytheme('spacelab'),
   
   HTML(
     '<head>
+      <!-- Google tag (gtag.js) -->
+      <script async src="https://www.googletagmanager.com/gtag/js?id=G-WBWKF12V6X"></script>
+      <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag("js", new Date());
+        gtag("config", "G-WBWKF12V6X");
+      </script>
+      
+      <!--
       <link rel="stylesheet" href="https://pages.nist.gov/nist-header-footer/css/nist-combined.css">
-        <script src="https://pages.nist.gov/nist-header-footer/js/nist-header-footer.js" type="text/javascript" defer="defer"></script>
-      </head>'
+      <script src="https://pages.nist.gov/nist-header-footer/js/nist-header-footer.js" type="text/javascript" defer="defer"></script>
+      -->
+     </head>'
   ),
   
   br(),
@@ -65,6 +76,9 @@ ui<-shinyUI(fluidPage(theme=shinytheme('spacelab'),
         tags$li("Steve Lund")
       ),
       br(),
+      HTML("
+      <p>The source code for the COMET application can be found <a href='https://github.com/usnistgov/COMET'>here</a>.<p>
+           "),
       p("Disclaimer: This application is hosted using Shinyapps.io (which uses AWS).",
         "Shinyapps.io runs applications in their own protected environments",
         "with encrypted SSL connection. The application is currently pending",

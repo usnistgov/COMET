@@ -66,7 +66,7 @@ metricsUI <- function(id) {
                        choices = list(#"R-squared"=1,
                                       #"Sum Sq Error"=2,
                                       #"Sum Abs Error"=3,
-                                      "Smoothed Scaled Sum Sq Error (recommended)"=8,
+                                      "Smoothed Scaled Sum Sq Error (default)"=8,
                                       #"Scaled Sum Sq Error"=4,
                                       #"Scaled Sum Abs Error"=5,
                                       #"Smoothed R-squared"=6,
@@ -475,7 +475,8 @@ metricsServer <- function(id,input_file) {
           #metrics$Title<-unique(apply(dat[,grouping_factors[-1][grouping_factors[-1]!=factor_to_compare]],1,paste,collapse=" "))
           metrics$Title <- 'Cell Concentration vs. Dilution Fraction'
           metrics$metrics$comp_factor<-metrics$metrics[,factor_to_compare]
-
+          
+          # not all of these are available for selection in the UI
           metrics_to_plot = c("R.squared",
                               "Sum.Squared.Error",
                               "Sum.Absolute.Error",
@@ -531,8 +532,8 @@ metricsServer <- function(id,input_file) {
             group_by(counting_method,target_dilution_fraction) %>% 
             summarise(pooled_mn = sum(mn*N/sum(N)),
                       std_err_mn = sd(mn)/sqrt(n()),
-                      upper = pooled_mn + std_err_mn,
-                      lower = pooled_mn - std_err_mn)
+                      upper = pooled_mn + std_err_mn*qt(conf_lev,n()-1),
+                      lower = pooled_mn - std_err_mn*qt(conf_lev,n()-1))
           
           metrics$means = means
           metrics$cv = cv
@@ -545,9 +546,9 @@ metricsServer <- function(id,input_file) {
                                          fill=counting_method,
                                          x=target_dilution_fraction ))+
             geom_col(position="dodge")+
-            geom_errorbar(data=cv,
-                          aes(x=target_dilution_fraction,ymax=upper,ymin=lower),
-                          position="dodge")+
+            #geom_errorbar(data=cv,
+            #              aes(x=target_dilution_fraction,ymax=upper,ymin=lower),
+            #              position="dodge")+
             ylab("Mean %CV")+
             xlab("Dilution Fraction")+
             guides(fill=guide_legend(title = factor_to_compare))+

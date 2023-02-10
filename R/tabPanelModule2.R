@@ -379,11 +379,23 @@ tp7UI <- function(id) {
     br(),
     span(textOutput(ns("insufficient_design")),style='color:Tomato'),
     br(),
-    h3("Comparison Table",align = 'center'),
+    h3("Proportionality Index Comparison Table",align = 'center'),
     br(),
-    DT::dataTableOutput(ns('comparison_table')),
+    DT::dataTableOutput(ns('pi_comparison_table')),
     br(),
-    h3("Disrimination and Precision Plots",align = 'center'),
+    h3("R Squared Comparison Table",align = 'center'),
+    br(),
+    DT::dataTableOutput(ns('r2_comparison_table')),
+    br(),
+    h3("Proportionality Constant Comparison Table",align = 'center'),
+    br(),
+    DT::dataTableOutput(ns('pc_comparison_table')),
+    br(),
+    h3("CV Comparison Table",align = 'center'),
+    br(),
+    DT::dataTableOutput(ns('cv_comparison_table')),
+    br(),
+    h3("Discrimination Plot",align = 'center'),
     br(),
     plotOutput(ns('method_precision_plot')),
     br(),
@@ -395,25 +407,8 @@ tp7UI <- function(id) {
       'The range is computed by gathering all target (or measured) DF values',
       'whose prediction intervals contain the cell count corresponding to the desired',
       'dilution fraction.'),
-    br(),
-    plotOutput(ns('precision_plot2')),
-    br(),
-    p('The above plot shows the flexible model prediction intervals, minus the',
-      'flexible model predicted mean. The plot visualizes the',
-      'precision of a counting method (using the flexible model), irrespective of proportionality.',
-      'Recall that the flexible model is fitted using the replicate samples',
-      '(which are averaged over the replicate observations).'),
-    br(),
-    h3("Bias Comparison Table",align = 'center'),
-    br(),
-    textOutput(ns('bias_text')),
-    br(),
-    DT::dataTableOutput(ns('bias_table')),
-    br(),
-    p('In the table above, percent bias is calculated as \\( 100 \\Big(1 - \\frac{\\hat{\\beta}_1}{\\hat{\\beta}_2}\\Big) \\),',
-      'where \\( \\hat{\\beta}_1 \\) and \\( \\hat{\\beta}_2 \\) are the estimated proportionality constants for the two',
-      'methods in the given row. The bias is considered significantly different from 0 if given the bootstrap confidence',
-      'interval does not contain 0.')
+    br()
+
   )
 }
 
@@ -443,8 +438,13 @@ tp7Server <- function(id, Metrics) {
           
         } 
         
+        
         preds <- Metrics()$prediction.ints
         good_inds = !is.nan(preds[,'lwr'])
+        
+        # plot prediction intervals for debugging:
+        #ggplot(preds,aes(x=x,y=y,col=comp_level)) + geom_line() +
+        #  geom_line(aes(y=upr)) + geom_line(aes(y=lwr))
         
         if(length(good_inds) == 0) {
           text = paste("\n  Prediction Intervals All NaN. \n",
@@ -481,26 +481,7 @@ tp7Server <- function(id, Metrics) {
         print(p)
       })
       
-      
-      output$precision_plot2 <- renderPlot({
-        if(is.null(Metrics()$df_for_poly)) {
-          return(NULL)
-        }
-        
-        df_for_poly = Metrics()$df_for_poly
-        
-        ggplot(df_for_poly,aes(x=x,col=comp_level)) + 
-          geom_line(aes(y=lwr-y),linetype='dashed') +
-          geom_line(aes(y=upr-y),linetype='dashed') +
-          ylab("Expected Deviation (cells/ml)") +
-          xlab("Dilution Fraction") +
-          geom_hline(yintercept = 0,linetype='dashed') +
-          theme(legend.title = element_blank()) +
-          ggtitle("Precision Range")
-      })
-      
-      
-      output$comparison_table <- DT::renderDataTable({
+      output$pi_comparison_table <- DT::renderDataTable({
         
         if(is.null(Metrics()$compare)) {
           return(NULL)
@@ -509,7 +490,6 @@ tp7Server <- function(id, Metrics) {
         outdf <- Metrics()$compare %>%
           as.data.frame() %>%
           dplyr::filter(Metric %in% Metrics()$metrics_to_plot)
-          
         
         for(var in c('Ratio','lower','upper')) {
           outdf[,var] = sapply(outdf[,var],signif,5)
@@ -527,8 +507,7 @@ tp7Server <- function(id, Metrics) {
         
       },options=list(searching=FALSE,ordering=FALSE))
       
-      
-      output$bias_table <- DT::renderDataTable({
+      output$r2_comparison_table <- DT::renderDataTable({
         
         if(is.null(Metrics()$compare)) {
           return(NULL)
@@ -536,28 +515,100 @@ tp7Server <- function(id, Metrics) {
         
         outdf <- Metrics()$compare %>%
           as.data.frame() %>%
-          dplyr::filter(Metric == 'Prop.Const.x')
-        
+          dplyr::filter(Metric == "R.squared")
         
         for(var in c('Ratio','lower','upper')) {
-          outdf[,var] = sapply(outdf[,var],round_or_truncate,3)
+          outdf[,var] = sapply(outdf[,var],signif,5)
         }
         
         outdf$sig = c('no','yes')[as.numeric( (1 < outdf$lower) | (outdf$upper < 1)) + 1 ]
         
-        outdf$bias = 100*(1 - outdf$Ratio)
-        outdf$bias_upper = apply(cbind(100*(1 - outdf$upper), 100*(1 - outdf$lower)),MARGIN=1,max )
-        outdf$bias_lower = apply(cbind(100*(1 - outdf$upper), 100*(1 - outdf$lower)),MARGIN=1,min )
-        
-        outdf = outdf[,c('level1','level2','bias','bias_lower','bias_upper','sig')]
-        
-        outdf[,c('bias','bias_lower','bias_upper')] = signif(outdf[,c('bias','bias_lower','bias_upper')],4)
-        
-        colnames(outdf) = c('Method 1', 'Method 2','%Bias', 'Bootstrap Lower CL', 'Bootstrap Upper CL', 'Significant')
+        colnames(outdf) = c('Metric','Method 1','Method 2',
+                            'Ratio','Bootstrap Lower CL','Bootstrap Upper CL','Significant')
         
         outdf
         
       },options=list(searching=FALSE,ordering=FALSE))
+      
+      output$pc_comparison_table <- DT::renderDataTable({
+        
+        if(is.null(Metrics()$compare)) {
+          return(NULL)
+        }
+        
+        outdf <- Metrics()$compare %>%
+          as.data.frame() %>%
+          dplyr::filter(Metric == "Prop.Const.x")
+        
+        for(var in c('Ratio','lower','upper')) {
+          outdf[,var] = sapply(outdf[,var],signif,5)
+        }
+        
+        outdf$sig = c('no','yes')[as.numeric( (1 < outdf$lower) | (outdf$upper < 1)) + 1 ]
+        
+        colnames(outdf) = c('Metric','Method 1','Method 2',
+                            'Ratio','Bootstrap Lower CL','Bootstrap Upper CL','Significant')
+        
+        outdf
+        
+      },options=list(searching=FALSE,ordering=FALSE))
+      
+      output$cv_comparison_table <- DT::renderDataTable({
+        
+        if(is.null(Metrics()$compare)) {
+          return(NULL)
+        }
+        
+        outdf <- Metrics()$compare %>%
+          as.data.frame() 
+        
+        outdf = outdf[grep('CV',outdf$Metric,TRUE),]
+        
+        for(var in c('Ratio','lower','upper')) {
+          outdf[,var] = sapply(outdf[,var],signif,5)
+        }
+        
+        outdf$sig = c('no','yes')[as.numeric( (1 < outdf$lower) | (outdf$upper < 1)) + 1 ]
+        
+        colnames(outdf) = c('Metric','Method 1','Method 2',
+                            'Ratio','Bootstrap Lower CL','Bootstrap Upper CL','Significant')
+        
+        outdf
+        
+      },options=list(searching=FALSE,ordering=FALSE))
+      
+      
+      
+      # output$bias_table <- DT::renderDataTable({
+      #   
+      #   if(is.null(Metrics()$compare)) {
+      #     return(NULL)
+      #   }
+      #   
+      #   outdf <- Metrics()$compare %>%
+      #     as.data.frame() %>%
+      #     dplyr::filter(Metric == 'Prop.Const.x')
+      #   
+      #   
+      #   for(var in c('Ratio','lower','upper')) {
+      #     outdf[,var] = sapply(outdf[,var],round_or_truncate,3)
+      #   }
+      #   
+      #   outdf$sig = c('no','yes')[as.numeric( (1 < outdf$lower) | (outdf$upper < 1)) + 1 ]
+      #   
+      #   outdf$bias = 100*(1 - outdf$Ratio)
+      #   outdf$bias_upper = apply(cbind(100*(1 - outdf$upper), 100*(1 - outdf$lower)),MARGIN=1,max )
+      #   outdf$bias_lower = apply(cbind(100*(1 - outdf$upper), 100*(1 - outdf$lower)),MARGIN=1,min )
+      #   
+      #   outdf = outdf[,c('level1','level2','bias','bias_lower','bias_upper','sig')]
+      #   
+      #   outdf[,c('bias','bias_lower','bias_upper')] = signif(outdf[,c('bias','bias_lower','bias_upper')],4)
+      #   
+      #   colnames(outdf) = c('Method 1', 'Method 2','%Bias', 'Bootstrap Lower CL', 'Bootstrap Upper CL', 'Significant')
+      #   
+      #   outdf
+      #   
+      # },options=list(searching=FALSE,ordering=FALSE))
   
     }
   )

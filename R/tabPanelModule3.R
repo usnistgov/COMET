@@ -171,10 +171,23 @@ tpDilutionServer <- function(id,Metrics) {
           dat = dat[dat$counting_method == input$which_method,]
           
         }
+        
+        dat$preds = 0
+        cms = unique(dat$counting_method)
+        pcs = Metrics()$metrics
+        pcs = pcs[pcs$Metric == 'Prop.Const.x',]
+        
+        for(ii in 1:length(cms)) {
+          
+          t_cm = cms[ii]
+          t_pc = pcs$Value[pcs$counting_method == t_cm]
+          dat$preds[dat$counting_method == t_cm] = dat$target_dilution_fraction*t_pc
+          
+        }
           
         if(sum(!is.na(dat$analyst)) > 2) {
           
-          p = ggplot(dat,aes(x=time_elapsed,y=cell_conc-starting_soln_conc*target_dilution_fraction,
+          p = ggplot(dat,aes(x=time_elapsed,y=(cell_conc-preds)/preds,
                              color=as.factor(rep_obsv),
                              shape=as.factor(analyst),
                              size=target_dilution_fraction))
@@ -183,7 +196,7 @@ tpDilutionServer <- function(id,Metrics) {
           
         } else {
           
-          p = ggplot(dat,aes(x=time_elapsed,y=cell_conc-starting_soln_conc*target_dilution_fraction,
+          p = ggplot(dat,aes(x=time_elapsed,y=(cell_conc-preds)/preds,
                              color=as.factor(rep_obsv),
                              size=target_dilution_fraction))
         }

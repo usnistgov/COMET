@@ -10,7 +10,6 @@ void_plot = function(text) {
           axis.ticks.y=element_blank())
 }
 
-
 ### Function fitting a proportional model
 prop_fitter<-function(data,var_func,log_scale_fit){
   y=unlist(data$mean_conc)

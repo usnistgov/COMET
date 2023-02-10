@@ -16,8 +16,6 @@ calc.metrics<-function(dat,var_func,smooth_df,plot.bool=TRUE,factor_to_compare=N
               n_conc=sum(!is.na(cell_conc))) ### Number of replicate observations
 
   
-
-  
   if(cv_estimation == 1) {
     CV<-rep_dat%>%group_by(counting_method,
                            target_dilution_fraction,
