@@ -6,17 +6,17 @@ tp1UI <- function(id) {
     br(),
     span(textOutput(ns("insufficient_design")),style='color:Tomato'),
     br(),
-    plotOutput(ns("raw_data_plot")),
+    withSpinner(plotOutput(ns("raw_data_plot"))),
     br(),
     helpText(descriptions[['tp1_raw_data_plot']]),
     br(),
-    plotOutput(ns("data_plot")),
+    withSpinner(plotOutput(ns("data_plot"))),
     br(),
     fluidRow(column(4),column(2,actionButton(ns('flex_mod'),'Show Prediction Intervals',align='center'))),
     br(),
     helpText(descriptions[['tp1_data_plot']]),
     br(),
-    plotOutput(ns("residual_plot")),
+    withSpinner(plotOutput(ns("residual_plot"))),
     br(),
     helpText(descriptions[['tp1_residual_plot']])
 
@@ -30,6 +30,10 @@ tp1Server <- function(id, input_file, Metrics) {
     function(input, output, session) {
       
       output$insufficient_design <- renderText({
+        
+        if(is.null(Metrics()$exp_des_flag)) {
+          return(NULL)
+        }
         
         if(Metrics()$exp_des_flag) {
           return(descriptions$design_disclaimer)
@@ -58,12 +62,13 @@ tp1Server <- function(id, input_file, Metrics) {
       
       
       output$data_plot <- renderPlot({
-        if (is.null(input_file())) {
+        if (is.null(Metrics()$dat)) {
           return(NULL)
         }
         
+        
         dat = Metrics()$dat
-        overview.plot = Metrics()$overview.plot 
+        overview.plot = means_plot(Metrics()) 
         df_for_poly = Metrics()$df_for_poly
         
         
@@ -83,42 +88,8 @@ tp1Server <- function(id, input_file, Metrics) {
           the_dfs$fit[ii] = sub_df$y[which.min(abs(the_dfs$mean_mdf[ii] - sub_df$x))]
         }
         
-        overview.plot = overview.plot + ylim(0,max(the_dfs$upr))
-        
-        
-        if(Metrics()$log_scale) {
-          
-          slope_vals = Metrics()$metrics %>%
-            filter(Metric == 'Prop.Const.x') %>% 
-            select(counting_method,Value)
-          
-          cms = unique(slope_vals$counting_method)
-          
-          line_data = data.frame(counting_method = rep(cms,each=100),
-                                 x=0)
-          
-          
-          for(ii in 1:length(cms)) {
-            
-            minval = min(dat$target_dilution_fraction[dat$counting_method == cms[ii]])
-            maxval = max(dat$target_dilution_fraction[dat$counting_method == cms[ii]])
-            
-            xvals = exp(seq(log(minval),log(maxval),length.out = 100))
-            
-            t_slope = slope_vals$Value[slope_vals$counting_method == cms[ii]]
-            
-            line_data$x[line_data$counting_method == cms[ii]] = xvals
-            line_data$y[line_data$counting_method == cms[ii]] = xvals*t_slope
-            
-          }
-          
-          overview.plot = overview.plot +
-            scale_x_continuous(trans='log10') +
-            scale_y_continuous(trans='log10') + 
-            geom_line(data=line_data,aes(x=x,y=y),color='black')
-        }
-        
-      
+        overview.plot = overview.plot + 
+          ylim(0,max(the_dfs$upr))
         
         if(flexible$show) {
           # add smooth fit and prediction intervals to plot
@@ -135,45 +106,26 @@ tp1Server <- function(id, input_file, Metrics) {
       })
       
       output$raw_data_plot <- renderPlot({
+        
         if(is.null(input_file())) {
           return(NULL)
         }
         
-        dat = Metrics()$dat
-        
-        p = ggplot(dat, aes(x=measured_dilution_fraction, y=cell_conc, col=counting_method )) + 
-          geom_point(alpha=.5) +
-          facet_wrap(~counting_method) + 
-          ggtitle("Raw Data") +
-          xlab("Dilution Fraction") +
-          ylab("Cell Concentration (cells/mL)") +
-          theme_bw() +
-          theme(plot.title = element_text(hjust = 0.5)) +
-          labs(col='Counting Method')
-        
-        if(Metrics()$log_scale) {
-          p = p + 
-            scale_x_continuous(trans='log10') +
-            scale_y_continuous(trans='log10')
-        }
+        p = raw_data_plot(Metrics()) 
         
         return(p)
         
       })
       
       output$residual_plot <- renderPlot({
+        
         if(is.null(input_file())) {
           return(NULL)
         }
         
-        p = Metrics()$residual.plot
+        p = residual_plot(Metrics())
         
-        if(Metrics()$log_scale) {
-          p = p + 
-            scale_x_continuous(trans='log10')
-        }
-        
-        p
+        return(p)
         
       })
       
@@ -203,21 +155,18 @@ tp2UI <- function(id) {
     br(),
     h3("Mean Concentration vs. Dilution Fraction"),
     plotOutput(ns("Means_Plot")),
-    p(paste("In the plot above, mean cell count is given",
+    p(paste("In the plot above, the mean cell count is given",
             "for each method, at each dilution fraction.",
-            "The vertical bars represent one-sample-t confidence intervals",
-            "of the mean.")),
+            "The vertical bars represent confidence intervals for mean %CV at the",
+            "user-selected confidence level.")),
     br(),
     h3("Coefficient of Variation (CV) at each Dilution Fraction"),
     plotOutput(ns("CV_Plot")),
     p(paste("In the plot above, mean percent CV is computed",
             "for each method, at each dilution fraction.",
-            'Each CV is estimated by taking a weighted average of the',
+            'Each CV is estimated by taking an average of the',
             'CVs for each replicate sample (and then multiplying by 100',
-            'to express the variability as a percentage of the mean).',
-            "The vertical bars represent the mean percent CV",
-            "plus minus the standard error of the mean CV",
-            "(standard deviation of the CVs / sqrt(# replicate samples)).")),
+            'to express the variability as a percentage of the mean).')),
     br(),
     h3("Proportionality Constants"),
     plotOutput(ns('prop_const_plot')),
@@ -239,7 +188,7 @@ tp2Server <- function(id, input_file, Metrics) {
       
       output$insufficient_design <- renderText({
         
-        if(Metrics()$exp_des_flag) {
+        if( !is.null(Metrics()$exp_des_flag) && Metrics()$exp_des_flag) {
           return(descriptions$design_disclaimer)
           
         } else{
@@ -253,7 +202,7 @@ tp2Server <- function(id, input_file, Metrics) {
           return(NULL)
         }
         
-        print(Metrics()$metrics.plot.r2)
+        return(r2_plot(Metrics()))
       })
 
       output$Metrics_Plot <- renderPlot({
@@ -261,53 +210,37 @@ tp2Server <- function(id, input_file, Metrics) {
           return(NULL)
         }
           
-        print(Metrics()$metrics.plot)
+        return(pi_plot(Metrics()))
       })
       
       output$Means_Plot <- renderPlot({
+        
         if(is.null(input_file() )) {
           return(NULL)
         }
         
-        p = Metrics()$means_plot
+        return(means_barplot(Metrics()))
         
-          
-        p
       })
       
       output$CV_Plot <- renderPlot({
+        
         if (is.null(input_file() )) {
           return(NULL)
         }
         
-        p = Metrics()$cv_plot
-        
-        p
+        return(cv_barplot(Metrics()))
           
       })
       
       output$prop_const_plot <- renderPlot({
-        outdf <- Metrics()$metrics %>%
-          dplyr::select(counting_method,cell_type,Metric,Value,lower,upper) %>%
-          dplyr::filter(Metric == 'Prop.Const.x') %>%
-          dplyr::select(-Metric)
         
-        for(var in c('Value','lower','upper')) {
-          outdf[,var] <- sapply(outdf[,var],round_or_truncate,3)
+        if(is.null(input_file() )) {
+          return(NULL)
         }
         
-        colnames(outdf) = c('countingMethod','cellType','propConst','lowerCL','upperCL')
-        
-        
-        ggplot(outdf, aes_string(x='countingMethod',y='propConst')) + 
-          geom_point() +
-          geom_errorbar(aes_string(ymin='lowerCL',ymax='upperCL'),width=.2) +
-          #ggtitle("Proportionality Constants") +
-          xlab("Method") +
-          ylab("Proportionality Constant") +
-          theme(plot.title = element_text(hjust = 0.5,size=20))
-        
-        
+        return(prop_const_plot(Metrics()))
+          
       })
       
       
@@ -350,7 +283,7 @@ tp3Server <- function(id, input_file, Metrics){
       
       output$insufficient_design <- renderText({
         
-        if(Metrics()$exp_des_flag) {
+        if(!is.null(Metrics()$exp_des_flag) && Metrics()$exp_des_flag) {
           return(descriptions$design_disclaimer)
           
         } else{
@@ -362,7 +295,9 @@ tp3Server <- function(id, input_file, Metrics){
       
       table1 = reactive({
         
-        req(Metrics,input_file)
+        if(is.null(Metrics()$dat)) {
+          return(NULL)
+        }
         methods = unique(Metrics()$dat$counting_method)
         dfs = unique(Metrics()$dat$target_dilution_fraction)
         outdf = matrix(rep(dfs, length(methods)),nrow=length(dfs) )
@@ -384,7 +319,9 @@ tp3Server <- function(id, input_file, Metrics){
       
       table2 = reactive({
         
-        req(Metrics,input_file)
+        if(is.null(Metrics()$dat)) {
+          return(NULL)
+        }
         
         outdf = Metrics()$dat %>%
           select(counting_method,replicate_sample,rep_obsv,
@@ -406,6 +343,10 @@ tp3Server <- function(id, input_file, Metrics){
       
       
       table3 = reactive({
+        
+        if(is.null(Metrics()$dat)) {
+          return(NULL)
+        }
         
         # number replicate samples
         outdf = Metrics()$dat %>% 
@@ -430,6 +371,10 @@ tp3Server <- function(id, input_file, Metrics){
       table4 = reactive({
         
         # number replicate obs
+        
+        if(is.null(Metrics()$dat)) {
+          return(NULL)
+        }
         
         outdf = Metrics()$dat %>% 
           select(counting_method,target_dilution_fraction,replicate_sample) %>%

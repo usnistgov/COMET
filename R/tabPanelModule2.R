@@ -40,7 +40,7 @@ tp5Server <- function(id, input_file, Metrics){
       
       output$insufficient_design <- renderText({
         
-        if(Metrics()$exp_des_flag) {
+        if(!is.null(Metrics()$exp_des_flag) && Metrics()$exp_des_flag) {
           return(descriptions$design_disclaimer)
           
         } else{
@@ -61,21 +61,21 @@ tp5Server <- function(id, input_file, Metrics){
           out_df[,var] = round(out_df[,var],0)
         }
         
-        means = Metrics()$means %>%
-          arrange(target_dilution_fraction,counting_method)
+        
+        #means = Metrics()$means %>%
+        #  arrange(target_dilution_fraction,counting_method)
         
         out_df = out_df %>%
           arrange(Metric,counting_method)
         
-        out_df$se = means$std_err_mn
+        #out_df$se = means$std_err_mn
         
         out_df = as.data.frame(out_df)
         
         colnames(out_df) <- c('Counting Method','Dilution Fraction',
-                              'Mean Concentration','Bootstrap Lower CL','Bootstrap Upper CL',
-                              'Std Err')
+                              'Mean Concentration','Bootstrap Lower CL','Bootstrap Upper CL')
         
-        out_df$`Std Err` = signif(out_df$`Std Err`,5)
+        #out_df$`Std Err` = signif(out_df$`Std Err`,5)
         
         out_df
         
@@ -143,7 +143,7 @@ tp5Server <- function(id, input_file, Metrics){
         out_df <- Metrics()$metrics %>% 
           as.data.frame() %>%
           dplyr::select(counting_method, Metric, Value, lower, upper) %>%
-          dplyr::filter(Metric %in% c(Metrics()$metrics_to_plot)) %>%
+          dplyr::filter(Metric %in% c(metrics_key_value(as.numeric(Metrics()$perf_metrics)))) %>%
           dplyr::filter(grepl('smooth',Metric,ignore.case = TRUE))
         
         colnames(out_df) <- c('Counting Method','Type of PI', 'PI', 'Bootstrap Lower CL','Bootstrap Upper CL')
@@ -161,32 +161,6 @@ tp5Server <- function(id, input_file, Metrics){
         table4()
         
       },options=list(searching=FALSE))
-      
-      
-      table5 = reactive({
-        
-        out_df <- Metrics()$metrics %>% 
-          as.data.frame() %>%
-          dplyr::select(counting_method, Metric, Value, lower, upper) %>%
-          dplyr::filter(Metric %in% c(Metrics()$metrics_to_plot)) %>%
-          dplyr::filter(!grepl('smooth',Metric,ignore.case = TRUE)) %>%
-          dplyr::filter(Metric != 'R.squared')
-        
-        colnames(out_df) <- c('Counting Method','Metric', 'Value', 'Bootstrap Lower CL','Bootstrap Upper CL')
-        
-        for(var in c('Value','Bootstrap Lower CL','Bootstrap Upper CL')) {
-          out_df[,var] <- sapply(out_df[,var],round_or_truncate,3)
-        }
-        
-        out_df
-        
-      })
-      output$table5 <- DT::renderDataTable({
-        
-        table5()
-        
-      },options=list(searching=FALSE))
-      
       
       output$downloadData = downloadHandler(
         filename = function() {
@@ -272,7 +246,7 @@ tp6Server <- function(id, input_file, Metrics) {
       
       output$insufficient_design <- renderText({
         
-        if(Metrics()$exp_des_flag) {
+        if(!is.null(Metrics()$exp_des_flag) && Metrics()$exp_des_flag) {
           return(descriptions$design_disclaimer)
           
         } else{
@@ -335,20 +309,14 @@ tp6Server <- function(id, input_file, Metrics) {
       
       output$var_assumption <- renderText({
         
-        f_body = deparse(body(Metrics()$var_func))
-        f_body_len = length(strsplit(f_body,'')[[1]])
+        var_func = as.numeric(Metrics()$var_func_ind)
         
-        if(f_body == 'mn') {
-            
-            return('Variance Assumption: Variance of cell count is proportional to dilution fraction.')
-            
-        } else if(f_body == '1') {
-          withMathJax()
-          return('Variance Assumption: Variance of cell count is constant across dilution fractions.')
+        assump = c('Variance in concentration is proportional to the mean concentration',
+                   'Variance in concentration is constant across all dilution fractions.',
+                   'The standard deviation of the concentration is proportional to the mean concentration')[var_func]
         
-        } else {
-          return(paste('Variance Assumption: Variance is proportional to:',body(var_func)))
-        }
+        return(paste0("Variance assumption: ",assump))
+          
         
       })
       
@@ -378,6 +346,15 @@ tp7UI <- function(id) {
     withMathJax(),
     br(),
     span(textOutput(ns("insufficient_design")),style='color:Tomato'),
+    br(),
+    h4("Quality Metric Comparison Description:"),
+    p("When multiple cell counting methods are present in the uploaded dataset,",
+      "the following",
+      "quality metrics are compared between all pairs of methods: Proportionality Index, R-squared, and percent CV.",
+      "Results are presented in tables below.",
+      "The metrics are considered statistically different if the bootstrap confidence interval for",
+      "the given ratio does not contain 1. This is indicated with a 'yes' or 'no' in the",
+      "column labeled 'Significant'."),
     br(),
     h3("Proportionality Index Comparison Table",align = 'center'),
     br(),
@@ -419,7 +396,7 @@ tp7Server <- function(id, Metrics) {
       
       output$insufficient_design <- renderText({
         
-        if(Metrics()$exp_des_flag) {
+        if(!is.null(Metrics()$exp_des_flag) && Metrics()$exp_des_flag) {
           return(descriptions$design_disclaimer)
           
         } else{
@@ -430,55 +407,8 @@ tp7Server <- function(id, Metrics) {
       
       output$method_precision_plot <- renderPlot({
         
-        if(is.null(Metrics()$prediction.ints)) {
-          
-          text = paste("\n  Plot cannot be computed. \n",
-                       "(Perhaps prediction intervals are non-monotonic?)")
-          return(void_plot(text))
-          
-        } 
+        return(discrimination_bands_plot(Metrics()))
         
-        
-        preds <- Metrics()$prediction.ints
-        good_inds = !is.nan(preds[,'lwr'])
-        
-        # plot prediction intervals for debugging:
-        #ggplot(preds,aes(x=x,y=y,col=comp_level)) + geom_line() +
-        #  geom_line(aes(y=upr)) + geom_line(aes(y=lwr))
-        
-        if(length(good_inds) == 0) {
-          text = paste("\n  Prediction Intervals All NaN. \n",
-                       "(Perhaps only 1 replicate sample per Target DF?)")
-          return(void_plot(text))
-        }
-        
-        preds = preds[good_inds,]
-        cms <- unique(preds$comp_level)
-        
-        preds$top <- 0
-        preds$bottom <- 0
-        
-        for(m in 1:length(cms)) {
-          
-          sub_preds = preds[preds$comp_level == cms[m],]
-          
-          upper <- approxfun(x=make_monotonic(sub_preds$lwr),y=sub_preds$x, ties=max)
-          lower <- approxfun(x=sub_preds$upr,y=sub_preds$x, ties=max)
-          
-          preds$top[preds$comp_level == cms[m]] <- upper(sub_preds$y)
-          preds$bottom[preds$comp_level == cms[m]] <- lower(sub_preds$y)
-          
-        }
-        
-        p = ggplot(preds) + 
-          geom_line(aes(x=x,y=bottom,color=comp_level)) +
-          geom_line(aes(x=x,y=top,color=comp_level)) +
-          geom_abline(slope=1,intercept=0,linetype='dashed') +
-          ylab('Dilution Fraction Range') +
-          xlab('Input Sample Dilution Fraction') + 
-          ggtitle("Discrimination Bands")
-        
-        print(p)
       })
       
       output$pi_comparison_table <- DT::renderDataTable({
@@ -489,7 +419,7 @@ tp7Server <- function(id, Metrics) {
         
         outdf <- Metrics()$compare %>%
           as.data.frame() %>%
-          dplyr::filter(Metric %in% Metrics()$metrics_to_plot)
+          dplyr::filter(Metric %in% c(metrics_key_value(as.numeric(Metrics()$perf_metrics)))) 
         
         for(var in c('Ratio','lower','upper')) {
           outdf[,var] = sapply(outdf[,var],signif,5)
@@ -577,38 +507,6 @@ tp7Server <- function(id, Metrics) {
         
       },options=list(searching=FALSE,ordering=FALSE))
       
-      
-      
-      # output$bias_table <- DT::renderDataTable({
-      #   
-      #   if(is.null(Metrics()$compare)) {
-      #     return(NULL)
-      #   }
-      #   
-      #   outdf <- Metrics()$compare %>%
-      #     as.data.frame() %>%
-      #     dplyr::filter(Metric == 'Prop.Const.x')
-      #   
-      #   
-      #   for(var in c('Ratio','lower','upper')) {
-      #     outdf[,var] = sapply(outdf[,var],round_or_truncate,3)
-      #   }
-      #   
-      #   outdf$sig = c('no','yes')[as.numeric( (1 < outdf$lower) | (outdf$upper < 1)) + 1 ]
-      #   
-      #   outdf$bias = 100*(1 - outdf$Ratio)
-      #   outdf$bias_upper = apply(cbind(100*(1 - outdf$upper), 100*(1 - outdf$lower)),MARGIN=1,max )
-      #   outdf$bias_lower = apply(cbind(100*(1 - outdf$upper), 100*(1 - outdf$lower)),MARGIN=1,min )
-      #   
-      #   outdf = outdf[,c('level1','level2','bias','bias_lower','bias_upper','sig')]
-      #   
-      #   outdf[,c('bias','bias_lower','bias_upper')] = signif(outdf[,c('bias','bias_lower','bias_upper')],4)
-      #   
-      #   colnames(outdf) = c('Method 1', 'Method 2','%Bias', 'Bootstrap Lower CL', 'Bootstrap Upper CL', 'Significant')
-      #   
-      #   outdf
-      #   
-      # },options=list(searching=FALSE,ordering=FALSE))
   
     }
   )

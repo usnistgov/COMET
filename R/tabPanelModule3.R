@@ -11,16 +11,15 @@ tpDilutionUI <- function(id) {
     plotOutput(ns('exp_diff')),
     uiOutput(ns('select_method')),
     br(),
-    p('The above plot shows the absolute difference between the measured concentration',
-      'and the expected concentration for each dilution fraction replicate observation',
-      'over time.  Each replicate observation appears as a different color dot.',
+    p('The above plot shows the scaled difference between the measured concentration',
+      'and the expected concentration (based on the fitted proportional model,',
+      'represented by the horizontal black line) over time.',
+      'Each replicate observation appears as a different colored dot.',
       'The size of the dots correspond to each dilution fraction.',
       'The toggle button allows the user to choose one method to plot at a time,',
-      'or all methods can be viewed simultaneously.'),
-    br(),
-    h4("Pipette Error"),
-    textOutput(ns('pip_err_no_mdf')),
-    plotOutput(ns('pip_err')),
+      'or all methods can be viewed simultaneously.',
+      'Systematic deviation from the horizontal line over time may suggest instability in',
+      'the dilution series experimental design.'),
     br(),
     h4("Viability Over Time Comparison",align='center'),
     textOutput(ns('no_via_col')),
@@ -28,7 +27,12 @@ tpDilutionUI <- function(id) {
     br(),
     fluidRow(
       column(width=6,offset=2,DT::dataTableOutput(ns('via_over_time_tests'),width='80%'),align='center')
-    )
+    ),
+    br(),
+    h4("Pipette Error",align="center"),
+    textOutput(ns('pip_err_no_mdf')),
+    plotOutput(ns('pip_err')),
+    br()
 
   )
 }
@@ -41,7 +45,7 @@ tpDilutionServer <- function(id,Metrics) {
       
       output$insufficient_design <- renderText({
         
-        if(Metrics()$exp_des_flag) {
+        if(!is.null(Metrics()$exp_des_flag) && Metrics()$exp_des_flag) {
           return(descriptions$design_disclaimer)
           
         } else{
@@ -109,38 +113,8 @@ tpDilutionServer <- function(id,Metrics) {
       
       output$pip_err <- renderPlot({
         
-        req(Metrics()$dat)
-        
-        dat = Metrics()$dat
-        
-        if(sum(!is.na(dat$time_elapsed)) < 2) {
-          return(NULL)
-        }
-        
-        if(!Metrics()$mdf_exists) {
-          return(NULL)
-        }
-        
-        data = dat %>% 
-          group_by(counting_method,random_sample_number,target_dilution_fraction) %>%
-          summarise(mdf = mean(measured_dilution_fraction))
-        
-        x = data$target_dilution_fraction
-        y = data$mdf
-        
-        res = summary(lm(y~x-1))
-        b_est = res$coefficients[1]
-        b_se = res$coefficients[2]
-        lab = paste("Slope (Std. Err): ",round(b_est,3)," (",round(b_se,4),")",sep='')
-      
-        
-        ggplot(data,aes(x=target_dilution_fraction,y=mdf)) +
-          geom_point() +
-          geom_abline(slope=1,intercept=0) + geom_label(x=.4,y=.8,label=lab,size=5) +
-          ylab("Measured Dilution Fraction") +
-          xlab("Target Dilution Fraction") +
-          theme(plot.title = element_text(hjust = 0.5,size=15))
-        
+        pipette_error_plot(Metrics())
+
       })
       
       output$exp_diff <- renderPlot({
@@ -149,74 +123,10 @@ tpDilutionServer <- function(id,Metrics) {
         if (is.null(Metrics()$dat) || is.null(input$which_method)) {
           return(NULL)
         }
-        
-        dat = Metrics()$dat
-        
-        # if no starting, return null
-        if(sum(!is.na(dat$starting_soln_conc)) < 3) {
-          return(NULL)
-        }
-        
-        # if no time elapsed, return null
-        if(sum(!is.na(dat$time_elapsed)) < 2) {
-          return(NULL)
-        }
-        
-        if(input$which_method == 'All') {
           
-          dat = dat
-          
-        } else {
-          
-          dat = dat[dat$counting_method == input$which_method,]
-          
-        }
-        
-        dat$preds = 0
-        cms = unique(dat$counting_method)
-        pcs = Metrics()$metrics
-        pcs = pcs[pcs$Metric == 'Prop.Const.x',]
-        
-        for(ii in 1:length(cms)) {
-          
-          t_cm = cms[ii]
-          t_pc = pcs$Value[pcs$counting_method == t_cm]
-          dat$preds[dat$counting_method == t_cm] = dat$target_dilution_fraction*t_pc
-          
-        }
-          
-        if(sum(!is.na(dat$analyst)) > 2) {
-          
-          p = ggplot(dat,aes(x=time_elapsed,y=(cell_conc-preds)/preds,
-                             color=as.factor(rep_obsv),
-                             shape=as.factor(analyst),
-                             size=target_dilution_fraction))
-          
-          p = p + guides(shape=guide_legend(title = "Analyst"))
-          
-        } else {
-          
-          p = ggplot(dat,aes(x=time_elapsed,y=(cell_conc-preds)/preds,
-                             color=as.factor(rep_obsv),
-                             size=target_dilution_fraction))
-        }
-          
-        p = p + 
-          geom_point(alpha=.7)+
-          scale_size_continuous(range = c(2,6)) +
-          geom_hline(yintercept=0)+
-          xlab("Time Elapsed")+
-          ylab("Difference from Expected Concentration")+
-          guides(color=guide_legend(title = "Obs. Rep."))+
-          theme_bw()+
-          ggtitle("Sample Integrity Over Time")+
-          theme(plot.title = element_text(hjust = 0.5,size=15)) +
-          scale_size_continuous(breaks=unique(dat$target_dilution_fraction)) +
-          facet_grid(counting_method~.)
-        
-
+        p = experimental_integrity_plot(Metrics(),input$which_method)
       
-        print(p)
+        return(p)
 
       })
       
@@ -238,30 +148,7 @@ tpDilutionServer <- function(id,Metrics) {
       
       output$via_over_time <- renderPlot({
         
-        data = Metrics()$dat
-        
-        if(is.null(data$percent_viable_cells)) {
-          return(NULL)
-        } else if(sum(!is.na(data$time_elapsed)) < 2) {
-          return(NULL)
-        } else if(sum(!is.na(data$percent_viable_cells)) < 2) {
-          return(NULL)
-        }
-        
-        good_inds = !is.na(data$percent_viable_cell)
-        
-        p = ggplot(data[good_inds,],aes(x=time_elapsed, y=percent_viable_cells, color=counting_method)) + 
-          geom_point() + 
-          geom_smooth(method='lm',se=FALSE) +
-          xlab("Time Elapsed") +
-          ylab("% Viable")
-        
-        if(any(is.na(data$stock_solution))) {
-          return(p)
-          
-        } else{
-          return(p + facet_wrap(~stock_solution))
-        }
+        via_over_time_plot(Metrics())
         
       })
       
@@ -322,7 +209,7 @@ tpViabilityUI <- function(id) {
     br(),
     h4("Pairwise Kolmogorov-Smirnov Test",align='center'),
     textOutput(ns('only_one_group')),
-    fluidRow(column(width=6,offset=2,align='center',tableOutput(ns('pairwise_ks')))),
+    fluidRow(column(width=12,align='center',tableOutput(ns('pairwise_ks')))),
     helpText(paste("The KS test tests to see whether there appears to be significant",
                    "differences between the distributions of the two groups being tested.",
                    "Above, we are testing whether the absolute residuals about the median",
@@ -352,7 +239,7 @@ tpViabilityServer <- function(id,Metrics) {
       
       output$insufficient_design <- renderText({
         
-        if(Metrics()$exp_des_flag) {
+        if(!is.null(Metrics()$exp_des_flag) && Metrics()$exp_des_flag) {
           return(descriptions$design_disclaimer)
           
         } else{
@@ -452,78 +339,19 @@ tpViabilityServer <- function(id,Metrics) {
       
       output$hist_plot <- renderPlot({
         
-        data = Metrics()$dat
-        
-        if(is.null(data$percent_viable_cells)) {
-          return(NULL)
-          
-        } else if (sum(!is.na(data$percent_viable_cells) ) < 2) {
-          return(NULL)
-        }
-        
-        good_inds = !is.na(data$percent_viable_cell)
-        
-        ggplot(data[good_inds,],aes(x=percent_viable_cells,fill=counting_method)) + 
-          geom_density(alpha=.3) + 
-          geom_histogram(aes(y=stat(count)/sum(count)),position='dodge') +
-          ylab("Proportion of Results")
-        
+        return(viability_hist_plot(Metrics()))
+  
       })
       
       output$emp_cdf <- renderPlot({
-        
-        data = Metrics()$dat
-        
-        if(is.null(data$percent_viable_cells)) {
-          return(NULL)
-          
-        } else if (sum(!is.na(data$percent_viable_cells) ) < 2) {
-          return(NULL)
-        }
-        
-        good_inds = !is.na(data$percent_viable_cells)
-        
-        data = data[good_inds,]
-        
-        data <- data %>%
-          group_by(counting_method) %>%
-          summarise(via_abs_resid = abs(percent_viable_cells - median(percent_viable_cells)) )
-        
-        data$counting_method = factor(data$counting_method)
-        
-        ggplot(data, aes(x=via_abs_resid,colour=counting_method)) + 
-          stat_ecdf() +
-          xlab("Percent Viable (absolute residuals)") +
-          ylab("Fraction of Data < x") +
-          theme(legend.position = "none")
+      
+        empirical_cdf_plot(Metrics())
         
       })
       
       output$emp_hist <- renderPlot({
         
-        data = Metrics()$dat
-        
-        if(is.null(data$percent_viable_cells)) {
-          return(NULL)
-          
-        } else if (sum(!is.na(data$percent_viable_cells) ) < 2) {
-          return(NULL)
-        }
-        
-        good_inds = !is.na(data$percent_viable_cell)
-        
-        data = data[good_inds,]
-        
-        data <- data %>%
-          group_by(counting_method) %>%
-          summarise(via_abs_resid = abs(percent_viable_cells - median(percent_viable_cells)) )
-        
-        data$counting_method = factor(data$counting_method)
-        
-        ggplot(data, aes(x=via_abs_resid,fill=counting_method)) + 
-          geom_histogram(aes(y=stat(count)/sum(count)),position='dodge') +
-          xlab("Percent Viable (absolute residuals)") +
-          ylab("Proportion of Data")
+        viability_resids_hist_plot(Metrics())
         
       })
       
@@ -597,10 +425,13 @@ tpViabilityServer <- function(id,Metrics) {
         data$counting_method = factor(data$counting_method)
         data$stock_solution = factor(data$stock_solution)
         
-        ggplot(data, aes(x=via_centered,colour=counting_method)) + 
+        ggplot(data, aes(x=via_centered,color=counting_method)) + 
           stat_ecdf() +
           xlab("percent_viable_cells (median-centered)") +
-          ylab("Fraction of Data < x")
+          ylab("Fraction of Data < x") +
+          labs(color='Counting Method') +
+          theme_bw() +
+          the_theme
         
       })
       
