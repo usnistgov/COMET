@@ -7,13 +7,13 @@ if [[ "$PWD" != "/home/ubuntu" ]]; then
   exit
 fi
 
-rm master.zip
+rm comet-master.zip
 rm -r COMET-master
 
-wget https://github.com/usnistgov/COMET/archive/refs/heads/master.zip
-unzip master.zip
+wget https://github.com/usnistgov/COMET/archive/refs/heads/master.zip -O comet-master.zip
+unzip comet-master.zip
 
 sudo docker build -t comet ./COMET-master
-sudo docker rm -f $(sudo docker ps -a -q)
+sudo docker rm -f comet
 sudo docker image prune -f
-sudo docker run -d -p 8080:3838 comet
+sudo docker run -d -p 8000:3838 --name=comet comet
