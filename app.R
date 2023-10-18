@@ -17,13 +17,14 @@ source('other/descriptions.R')
 
 options(dplyr.summarise.inform = FALSE)
 
-ui<-shinyUI(fluidPage(theme=shinytheme('spacelab'),
-
-  br(),
+ui<-shinyUI(
   
-  tags$h1(
-    "COMET: Counting Method Evaluation Tool"
-  ),
+  fluidPage(id='fullpage',#theme=shinytheme('spacelab'),
+
+  tags$link(rel="stylesheet",href='my_style.css'),
+  tags$link(rel='stylesheet',href='nist-style.css',),
+  tags$head(tags$link(rel="shortcut icon", href="favicon.ico")),
+  tags$head(HTML("<title>COMET: Counting Method Evaluation Tool</title>")),
   
   HTML(
     '<head>
@@ -35,11 +36,6 @@ ui<-shinyUI(fluidPage(theme=shinytheme('spacelab'),
         gtag("js", new Date());
         gtag("config", "G-WBWKF12V6X");
       </script>
-      
-      
-      <link rel="stylesheet" href="https://pages.nist.gov/nist-header-footer/css/nist-combined.css">
-      <script src="https://pages.nist.gov/nist-header-footer/js/nist-header-footer.js" type="text/javascript" defer="defer"></script>
-      
      </head>'
   ),
   
@@ -52,11 +48,17 @@ ui<-shinyUI(fluidPage(theme=shinytheme('spacelab'),
     "))
   ),
   
+  tags$div(HTML(nist_header_html)),
+  
+  HTML(
+    "<h1>&nbsp COMET: Counting Method Evaluation Tool</h1>"
+  ),
+  
   br(),
   
   fluidRow(
-  
-    sidebarPanel(
+    column(width=3,
+    sidebarPanel(width=12,
       p("Welcome to the Counting Method Evalution Tool.",
         "Begin by uploading your dataset in the proper format,",
         "and then selecting the desired options for analysis.",
@@ -88,12 +90,8 @@ ui<-shinyUI(fluidPage(theme=shinytheme('spacelab'),
       br(),
       HTML("
       <p>The source code for the COMET application can be found <a href='https://github.com/usnistgov/COMET'>here</a>.<p>
-           "),
-      p("Disclaimer: This application is hosted using Shinyapps.io (which uses AWS).",
-        "Shinyapps.io runs applications in their own protected environments",
-        "with encrypted SSL connection. The application is currently pending",
-        "NIST security approval."),
-    ), # end sidebar
+           ")
+    )), # end sidebar
 
     mainPanel( tabsetPanel(
       tabPanel("Data Overview",
@@ -126,9 +124,10 @@ ui<-shinyUI(fluidPage(theme=shinytheme('spacelab'),
     ), # end fluidRow
 
 
-    ) # end fluidRow
+    ), # end fluidRow
   
-
+  tags$div(HTML(nist_footer_html))
+  
 ))
 
 server<-function(input, output, session) {
