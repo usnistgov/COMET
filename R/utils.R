@@ -328,8 +328,8 @@ compute_means = function(dat) {
 compute_df_for_poly = function(dat,data.for.plot,fits,smooth_df,var_func) {
   
   # polynomial fit with prediction intervals
-  xlowerlim = min(dat$target_dilution_fraction)
-  xupperlim = max(dat$target_dilution_fraction)
+  xlowerlim = 0
+  xupperlim = 1
   npreds = 100
   
   x = seq(xlowerlim,xupperlim,length.out = npreds)
@@ -354,8 +354,8 @@ compute_df_for_poly = function(dat,data.for.plot,fits,smooth_df,var_func) {
     pred_and_fit = predict(mod,X,interval='prediction',weights=1/var_func(x))
 
     
-    df_for_poly$y[df_for_poly$comp_level == methods[m]] <- pred_and_fit[,'fit']
-    df_for_poly$lwr[df_for_poly$comp_level == methods[m]] <- pmax(pred_and_fit[,'lwr'],rep(1e-10,length(pred_and_fit[,'lwr'])))
+    df_for_poly$y[df_for_poly$comp_level == methods[m]] <- pmax(pred_and_fit[,'fit'],rep(0,length(pred_and_fit[,'fit'])))
+    df_for_poly$lwr[df_for_poly$comp_level == methods[m]] <- pmax(pred_and_fit[,'lwr'],rep(0,length(pred_and_fit[,'lwr'])))
     df_for_poly$upr[df_for_poly$comp_level == methods[m]] <- pred_and_fit[,'upr']
     
   }
@@ -527,22 +527,47 @@ run_bootstrap_proc = function(dat,
                               smooth_df,
                               log_scale,
                               metrics,
-                              conf_lev) {
+                              conf_lev,
+                              from_shiny) {
   
   boot.metrics<-matrix(NA,nrow(metrics$metrics),n_boot)
   
-  for(i in 1:n_boot){
-    boot.ind <- nonpar.boot.simple(dat,i)
-    boot.dat <- dat[boot.ind[,1],]
-    boot.dat$cell_conc <- dat$cell_conc[boot.ind[,2]]
-    boot.dat$cell_conc[is.na(dat$cell_conc)] <- NA
-    boot.dat$stock_extraction<-dat$stock_extraction
-    boot.metrics[,i]<-unlist(calc.metrics(boot.dat,
-                                          var_func,
-                                          smooth_df,
-                                          for_bootstrap=T)$metrics$Value)
+  if(from_shiny) { 
     
+    withProgress(message="Running Bootstrap Iterations",value=0, {
+      for(i in 1:n_boot){
+        boot.ind <- nonpar.boot.simple(dat,i)
+        boot.dat <- dat[boot.ind[,1],]
+        boot.dat$cell_conc <- dat$cell_conc[boot.ind[,2]]
+        boot.dat$cell_conc[is.na(dat$cell_conc)] <- NA
+        boot.dat$stock_extraction<-dat$stock_extraction
+        boot.metrics[,i]<-unlist(calc.metrics(boot.dat,
+                                              var_func,
+                                              smooth_df,
+                                              for_bootstrap=T)$metrics$Value)
+        
+        incProgress(amount = 1/n_boot, detail = paste("Bootstrap iteration",i))
+        
+      }
+    })
+  
+  } else {
+    
+    for(i in 1:n_boot){
+      boot.ind <- nonpar.boot.simple(dat,i)
+      boot.dat <- dat[boot.ind[,1],]
+      boot.dat$cell_conc <- dat$cell_conc[boot.ind[,2]]
+      boot.dat$cell_conc[is.na(dat$cell_conc)] <- NA
+      boot.dat$stock_extraction<-dat$stock_extraction
+      boot.metrics[,i]<-unlist(calc.metrics(boot.dat,
+                                            var_func,
+                                            smooth_df,
+                                            for_bootstrap=T)$metrics$Value)
+    }
   }
+  
+  
+
   
   boot.metrics[is.infinite(boot.metrics)] = NA
   
@@ -597,8 +622,11 @@ compare_metrics <- function(metrics,boot.metrics,dat,conf_lev) {
   metrics$compare<-data.frame(Metric=NULL,level1=NULL,level2=NULL,Ratio=NULL,lower=NULL,upper=NULL)
   
   if(n_compare == 1) {
+    metrics$multiple_methods = FALSE
     return(metrics)
   }
+  
+  metrics$multiple_methods = TRUE
   
   for(i in 1:(n_compare-1)){
     for(j in (i+1):n_compare){
@@ -764,16 +792,12 @@ get_cdf = function(data) {
 
 make_monotonic = function(y) {
   # takes a function and flattens where necessary so that there are no 'hills'
-  
-  flat_y = y
 
   for(ii in 2:length(y)) {
-    if(any(y[-(1:ii)] < y[ii])) {
-      flat_y[ii] = min(y[-(1:ii)])
-    }
+    y[ii] = max( (y[(ii-1)] + 10**(-5)),y[ii])
   }
   
-  return(flat_y)
+  return(y)
 }
 
 find_ranges = function(y,x,var_func,degree,new_x=1:100/100){
@@ -914,5 +938,53 @@ simple_to_gui = function(data) {
   big_d = dplyr::bind_rows(lod)
   
   return(big_d)
+  
+}
+
+get_metrics_names = function() {
+  
+  # not all of these are available for selection in the UI
+  all_metrics = c("R.squared",
+                  "Sum.Squared.Error",
+                  "Sum.Absolute.Error",
+                  "Scaled.Sum.Squared.Error",
+                  "Scaled.Sum.Absolute.Error",
+                  "Smoothed.R-squared",
+                  "Smoothed.Sum.Squared.Error",
+                  "Smoothed.Scaled.Sum.Squared.Error",
+                  "Smoothed.Sum.Absolute.Error",
+                  "Smoothed.Scaled.Sum.Absolute.Error",
+                  'Variance.Stabilized.Smoothed.Sum.Squared.Error',
+                  'Variance.Stabilized.Smoothed.Sum.Absolute.Error')
+  
+  all_metrics_names_pretty = c("R squared",
+                               "Sum Squared Error",
+                               "Sum Absolute Error",
+                               "Scaled Sum Squared Error",
+                               "Scaled Sum Absolute Error",
+                               "Smoothed R-squared",
+                               "Smoothed Sum Squared Error",
+                               "Smoothed Scaled Sum Squared Error",
+                               "Smoothed Sum Absolute Error",
+                               "Smoothed Scaled Sum Absolute Error",
+                               'Variance Stabilized Smoothed Sum Squared Error',
+                               'Variance Stabilized Smoothed Sum Absolute Error')
+  
+  
+  return(
+    list(
+      all_metrics=all_metrics,
+      all_metrics_names_pretty=all_metrics_names_pretty)
+    )
+  
+}
+
+is_increasing = function(x) {
+  
+  if(any(is.na(x))) {
+    stop("NAs detected in input.")
+  }
+  
+  return(all( x[1:(length(x)-1)] < x[2:length(x)]))
   
 }

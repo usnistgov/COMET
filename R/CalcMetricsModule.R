@@ -54,6 +54,8 @@ metricsUI <- function(id) {
     actionButton(ns("help_n_boot"), "Help"),
     hr(),
     
+    numericInput(ns('random_seed'),h4("Random Seed"),value=sample(1:999,1),min=1,max=9999,step=1),
+    hr(),
     
     sliderInput(ns("conf_lev"), label = h4("Confidence Level"), 
                 min=.80,max=.99,step = .01,
@@ -168,7 +170,7 @@ metricsServer <- function(id,input_file) {
         
         validate(
           need(!is.null(inFile),
-               "No file uploaded. Please upload data file to begin analysis.")
+               "No file uploaded. Please be sure a file has been uploaded before clicking the Run Analysis button.")
         )
         
         # read file
@@ -207,13 +209,19 @@ metricsServer <- function(id,input_file) {
           smooth_df = input$smooth_df_cus
         }
         
+        validate(
+          need(!is.null(input$random_seed),
+               "Please enter a random seed.")
+        )
+        
         metrics = run_comet(dataset=dat,
                             n_boot=n_boot,
-                            seed=123,
+                            seed=as.numeric(input$random_seed),
                             var_func=var_func,
                             smooth_df=smooth_df,
                             perf_metrics=input$perf_metrics,
-                            conf_lev=as.numeric(input$conf_lev)) 
+                            conf_lev=as.numeric(input$conf_lev),
+                            from_shiny=TRUE) 
       
         
         

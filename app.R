@@ -36,11 +36,20 @@ ui<-shinyUI(fluidPage(theme=shinytheme('spacelab'),
         gtag("config", "G-WBWKF12V6X");
       </script>
       
-      <!--
+      
       <link rel="stylesheet" href="https://pages.nist.gov/nist-header-footer/css/nist-combined.css">
       <script src="https://pages.nist.gov/nist-header-footer/js/nist-header-footer.js" type="text/javascript" defer="defer"></script>
-      -->
+      
      </head>'
+  ),
+  
+  tags$head(
+    tags$style(HTML("
+      .shiny-output-error-validation {
+        color: #C0392B;
+        font-weight: bold;
+      }
+    "))
   ),
   
   br(),

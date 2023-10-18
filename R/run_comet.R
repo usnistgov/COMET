@@ -4,7 +4,8 @@ run_comet = function(dataset,
                      var_func = 1,
                      smooth_df = 0, # 0 will go to default
                      perf_metrics = c(7,8,9,10),
-                     conf_lev = .95) {
+                     conf_lev = .95,
+                     from_shiny = FALSE) {
   
   check_inputs(dataset,
                n_boot,
@@ -40,7 +41,7 @@ run_comet = function(dataset,
   dat = check_stock_ext_and_rep_samp(dat)
   
   
-  exp_design_flag = check_experimental_design(dat)
+  exp_des_flag = check_experimental_design(dat)
   
   # organize dat
   dat = dat %>% 
@@ -67,7 +68,8 @@ run_comet = function(dataset,
                               smooth_df,
                               log_scale,
                               metrics,
-                              conf_lev)
+                              conf_lev,
+                              from_shiny=from_shiny)
   
   boot.metrics = bp_res$boot.metrics
   metrics = bp_res$metrics
@@ -86,7 +88,7 @@ run_comet = function(dataset,
   metrics$var_func = var_func
   metrics$var_func_ind = var_func_ind
   metrics$mdf_exists = mdf_exists
-  metrics$exp_design_flag = exp_design_flag
+  metrics$exp_des_flag = exp_des_flag
   metrics$perf_metrics = perf_metrics
   
   return(metrics)

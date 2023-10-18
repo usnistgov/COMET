@@ -66,6 +66,8 @@ means_barplot = function(metrics) {
               upper = pooled_mn + std_err_mn*qt(conf_lev,n()-1),
               lower = pooled_mn - std_err_mn*qt(conf_lev,n()-1))
   
+  means$lower = pmax(0,means$lower)
+  
   means$target_dilution_fraction = factor(means$target_dilution_fraction)
   
   p = ggplot(means,aes(y=pooled_mn,fill=counting_method,x=target_dilution_fraction))+
@@ -171,31 +173,9 @@ cv_barplot = function(metrics) {
 pi_plot = function(metrics) {
   
   # not all of these are available for selection in the UI
-  all_metrics = c("R.squared",
-                  "Sum.Squared.Error",
-                  "Sum.Absolute.Error",
-                  "Scaled.Sum.Squared.Error",
-                  "Scaled.Sum.Absolute.Error",
-                  "Smoothed.R-squared",
-                  "Smoothed.Sum.Squared.Error",
-                  "Smoothed.Scaled.Sum.Squared.Error",
-                  "Smoothed.Sum.Absolute.Error",
-                  "Smoothed.Scaled.Sum.Absolute.Error",
-                  'Variance.Stabilized.Smoothed.Sum.Squared.Error',
-                  'Variance.Stabilized.Smoothed.Sum.Absolute.Error')
+  all_metrics = get_metrics_names()$all_metrics
   
-  all_metrics_names_pretty = c("R squared",
-                               "Sum Squared Error",
-                               "Sum Absolute Error",
-                               "Scaled Sum Squared Error",
-                               "Scaled Sum Absolute Error",
-                               "Smoothed R-squared",
-                               "Smoothed Sum Squared Error",
-                               "Smoothed Scaled Sum Squared Error",
-                               "Smoothed Sum Absolute Error",
-                               "Smoothed Scaled Sum Absolute Error",
-                               'Variance Stabilized Smoothed Sum Squared Error',
-                               'Variance Stabilized Smoothed Sum Absolute Error')
+  all_metrics_names_pretty = get_metrics_names()$all_metrics_names_pretty
   
   perf_metrics = metrics$perf_metrics
   
@@ -490,12 +470,10 @@ discrimination_bands_plot = function(metrics) {
     
   } 
   
+  dat = metrics$dat
   preds = metrics$df_for_poly
   good_inds = !is.nan(preds[,'lwr'])
   
-  # plot prediction intervals for debugging:
-  #ggplot(preds,aes(x=x,y=y,col=comp_level)) + geom_line() +
-  #  geom_line(aes(y=upr)) + geom_line(aes(y=lwr))
   
   if(length(good_inds) == 0) {
     text = paste("\n  Prediction Intervals All NaN. \n",
@@ -503,35 +481,100 @@ discrimination_bands_plot = function(metrics) {
     return(void_plot(text))
   }
   
+  non_monotonic_text = "Non-monotonicity detected for predictions or prediction intervals."
+  
+  
   preds = preds[good_inds,]
+  preds = preds[preds$x >= min(dat$target_dilution_fraction) &
+                  preds$x <= max(dat$target_dilution_fraction),]
   cms <- unique(preds$comp_level)
   
-  preds$top <- 0
-  preds$bottom <- 0
+  preds$top <- NA
+  preds$bottom <- NA
+  
+  preds$top_conc <- 0
+  preds$bottom_conc <- 0
+  
+  monotonic = rep(TRUE,length(cms))
+  
   
   for(m in 1:length(cms)) {
     
     sub_preds = preds[preds$comp_level == cms[m],]
+    #sub_preds$upr[which.min(sub_preds$x)] = sub_preds$lwr[which.min(sub_preds$x)]
+    #sub_preds$lwr[which.max(sub_preds$x)] = sub_preds$upr[which.max(sub_preds$x)]
+    
+    if(!all(is_increasing(sub_preds$y),is_increasing(sub_preds$lwr),is_increasing(sub_preds$upr))) {
+      
+      monotonic[m] = FALSE
+      next
+      
+    }
     
     upper <- approxfun(x=make_monotonic(sub_preds$lwr),y=sub_preds$x, ties=max)
-    lower <- approxfun(x=sub_preds$upr,y=sub_preds$x, ties=max)
+    lower <- approxfun(x=make_monotonic(sub_preds$upr),y=sub_preds$x, ties=max)
+    mid <- approxfun(x=sub_preds$x,y=sub_preds$y,ties=max)
     
-    preds$top[preds$comp_level == cms[m]] <- upper(sub_preds$y)
-    preds$bottom[preds$comp_level == cms[m]] <- lower(sub_preds$y)
+    preds$top[preds$comp_level == cms[m]] = upper(sub_preds$y)
+    preds$bottom[preds$comp_level == cms[m]] = lower(sub_preds$y)
+    
+    preds$top_conc[preds$comp_level == cms[m]] = mid(preds$top[preds$comp_level == cms[m]])
+    preds$bottom_conc[preds$comp_level == cms[m]] = mid(preds$bottom[preds$comp_level == cms[m]])
+    preds$top_conc[preds$comp_level == cms[m] & is.na(preds$top_conc)] = max(preds$y[preds$comp_level == cms[m]])
     
   }
   
-  p = ggplot(preds) + 
+  pred_ints_plot = ggplot(preds) + 
+    geom_line(aes(x=x,y=lwr,col=comp_level),linetype='dashed') + 
+    geom_line(aes(x=x,y=upr,col=comp_level),linetype='dashed') +
+    geom_line(aes(x=x,y=y,col=comp_level)) +
+    xlab("DF") + 
+    ylab("Prediction Interval for Cell Conc") + 
+    labs(color='Counting Method') +
+    theme_bw() +
+    get_theme()
+  
+  if(all(!monotonic)) {
+    return(list(db_plot_df = void_plot(non_monotonic_text), 
+                db_plot_conc = void_plot(non_monotonic_text),
+                pred_ints_plot = pred_ints_plot,
+                monotonic = monotonic))
+  }
+  
+  mn = min(preds$x)
+  mx = max(preds$x)
+  breaks = seq(.1,1,by=.1)
+  breaks = breaks[breaks >= mn & breaks <= mx]
+  
+  p_df = ggplot(preds[preds$comp_level %in% cms[monotonic],]) + 
     geom_line(aes(x=x,y=bottom,color=comp_level),size=.75) +
     geom_line(aes(x=x,y=top,color=comp_level),size=.75) +
     geom_abline(slope=1,intercept=0,linetype='dashed') +
     ylab('Dilution Fraction Range') +
     xlab('Input Sample Dilution Fraction') + 
     labs(color='Counting Method') +
-    ggtitle("Discrimination Bands") + 
+    ggtitle("Discrimination Bands Plot Using Dilution Fraction") + 
+    theme_bw() +
+    scale_x_continuous(breaks=breaks ) +
+    scale_y_continuous(breaks=breaks ) +
+    get_theme()
+  
+  p_conc = ggplot(preds[preds$comp_level %in% cms[monotonic],]) + 
+    geom_line(aes(x=y,y=upr,color=comp_level),size=.75) +
+    geom_line(aes(x=y,y=lwr,color=comp_level),size=.75) +
+    geom_abline(slope=1,intercept=0,linetype='dashed') +
+    ylab('Concentration Range') +
+    xlab('Concentration Reading') + 
+    labs(color='Counting Method') +
+    ggtitle("Discrimination Bands Plot Using Concentration") + 
     theme_bw() +
     get_theme()
   
-  return(p)
+
+  
+  return(list(db_plot_df = p_df, 
+              db_plot_conc = p_conc,
+              pred_ints_plot = pred_ints_plot,
+              monotonic = monotonic))
   
 }

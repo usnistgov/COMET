@@ -231,7 +231,7 @@ tp6UI <- function(id) {
     br(),
     h4('Smoothing Approach'),
     br(),
-    h5(textOutput(ns('smoothing_approach'))),
+    uiOutput(ns('smoothing_approach')),
     p('The above equation represents the form of the fitted flexible model.'),
     br(),
     h4(textOutput(ns('n_boot'))),
@@ -255,54 +255,62 @@ tp6Server <- function(id, input_file, Metrics) {
         
       })
       
+      
       output$n_boot <- renderText({
         paste('Number of bootstrap iterations conducted:',Metrics()$n_boot)
       })
       
-      output$smoothing_approach <- renderText({
+      
+      output$smoothing_approach <- renderUI({
         
         degree = Metrics()$smooth_df
         
-        outstr = "$$ y_i = \\hat{\\beta}_0 + \\hat{\\beta}_1 DF_i"
+        slash_str = "\\"
+        
+        outstr = paste0("$$y_i =",slash_str,"hat{",slash_str,"beta}_0 +",slash_str,"hat{",slash_str,"beta}_1 DF_i")
         
         for(ii in 2:degree) {
-          outstr = paste(outstr,'+ \\hat{\\beta}_',ii,' DF_i^{',ii,'}',sep='')
+          outstr = paste(outstr,'+ ',slash_str,'hat{',slash_str,'beta}_',ii,' DF_i^{',ii,'}',sep='')
         }
         
-        outstr = paste(outstr,'$$')
+        outstr = paste0(outstr,'$$')
         
-        return(outstr)
+        return(tagList(withMathJax(),p(outstr) ))
+        
       })
+      
       
       output$pi_formulas <- renderUI({
         
         # note: req() did not work here on Metrics to prevent math output
-        res = tryCatch(is.null(Metrics()$n_boot),
-                       error = function(e) return(TRUE))
-        
-        if(!res) {
-          
-          formulas = list(
-            "Smoothed.R-squared" = 
-              '$$ R^2_{smooth} = 1 - \\frac{\\big(e^{(s)}_{ij}\\big)^2}{SST} $$',
-            "Smoothed.Sum.Squared.Error" = 
-              '$$ SSE_{smooth} = \\frac{1}{\\hat{\\lambda}_1^2} \\sum_{i} \\sum_{j} \\Big( e^{(s)}_{ij} \\Big)^2  $$',
-            "Smoothed.Scaled.Sum.Squared.Error" = 
-              '$$ SSE_{smooth,scaled} = \\sum_{i} \\sum_{j} \\bigg( \\frac{e^{(s)}_{ij}}{\\hat{\\lambda}_{ij}} \\bigg)^2 $$',
-            "Smoothed.Sum.Absolute.Error"=
-              '$$ SAE_{smooth} = \\frac{1}{\\hat{\\lambda}_1 } \\sum_{i} \\sum_{j} \\big| e^{(s)}_{ij} \\big|  $$',
-            "Smoothed.Scaled.Sum.Absolute.Error"=
-              '$$ SAE_{smooth,scaled} =  \\sum_{i} \\sum_{j} \\frac{\\big| e^{(s)}_{ij} \\big|}{\\hat{\\lambda}_{ij}}  $$')
-          
-          inds = which(names(formulas) %in% Metrics()$metrics_to_plot)
-          string = ''
-          for(i in inds) {
-            string = paste(string,formulas[[i]],sep='\n')
-          }
-          
-          withMathJax(
-            helpText(string))
+
+        if(is.null(Metrics()$n_boot)) {
+          return(NULL)
         }
+    
+        formulas = list(
+          "Smoothed.R-squared" = 
+            '$$ R^2_{smooth} = 1 - \\frac{\\big(e^{(s)}_{ij}\\big)^2}{SST} $$',
+          "Smoothed.Sum.Squared.Error" = 
+            '$$ SSE_{smooth} = \\frac{1}{\\hat{\\lambda}_1^2} \\sum_{i} \\sum_{j} \\Big( e^{(s)}_{ij} \\Big)^2  $$',
+          "Smoothed.Scaled.Sum.Squared.Error" = 
+            '$$ SSE_{smooth,scaled} = \\sum_{i} \\sum_{j} \\bigg( \\frac{e^{(s)}_{ij}}{\\hat{\\lambda}_{ij}} \\bigg)^2 $$',
+          "Smoothed.Sum.Absolute.Error"=
+            '$$ SAE_{smooth} = \\frac{1}{\\hat{\\lambda}_1 } \\sum_{i} \\sum_{j} \\big| e^{(s)}_{ij} \\big|  $$',
+          "Smoothed.Scaled.Sum.Absolute.Error"=
+            '$$ SAE_{smooth,scaled} =  \\sum_{i} \\sum_{j} \\frac{\\big| e^{(s)}_{ij} \\big|}{\\hat{\\lambda}_{ij}}  $$',
+          'Variance.Stabilized.Smoothed.Sum.Squared.Error'=
+            '$$ SSE_{VS-smooth,scaled} =  \\sum_{i} \\sum_{j} \\frac{\\Big( e^{(s)}_{ij} \\big)^2}{\\hat{\\lambda}_{ij}}  $$',
+          'Variance.Stabilized.Smoothed.Sum.Absolute.Error'=
+            '$$ SAE_{VS-smooth,scaled} =  \\sum_{i} \\sum_{j} \\frac{\\big| e^{(s)}_{ij} \\big|}{\\sqrt{\\hat{\\lambda}_{ij}}}  $$')
+        
+        inds = which(names(formulas) %in% get_metrics_names()$all_metrics[as.numeric(Metrics()$perf_metrics)])
+        string = ''
+        for(i in inds) {
+          string = paste(string,formulas[[i]],sep='\n')
+        }
+        
+        return(htmltools::tagList(withMathJax(),string))
         
 
       })
@@ -372,7 +380,7 @@ tp7UI <- function(id) {
     br(),
     DT::dataTableOutput(ns('cv_comparison_table')),
     br(),
-    h3("Discrimination Plot",align = 'center'),
+    h3("Discrimination Plots",align = 'center'),
     br(),
     plotOutput(ns('method_precision_plot')),
     br(),
@@ -383,8 +391,19 @@ tp7UI <- function(id) {
       'fractions that could have generated the cell count observed (or predicted) at 0.50.',
       'The range is computed by gathering all target (or measured) DF values',
       'whose prediction intervals contain the cell count corresponding to the desired',
-      'dilution fraction.'),
-    br()
+      'dilution fraction. If a counting method produces prediction intervals that are non-monotonic,',
+      'the method will not be displayed in the above plot.'),
+    br(),
+    plotOutput(ns('method_precision_plot_conc')),
+    br(),
+    p('The above plot uses the fitted flexible model to estimate',
+      'the range of concentration readings (y-axis) that are nominally similar to those at a given concentration (x-axis) based on the fitted model.',
+      'If a counting method produces prediction intervals that are non-monotonic,',
+      'the method will not be displayed in the above plot.'),
+    br(),
+    plotOutput(ns('prediction_interval_plot')),
+    br(),
+    p("The above plot displays the predicted values (solid line) along with prediction intervals (dashed lines) for each counting method.")
 
   )
 }
@@ -407,13 +426,29 @@ tp7Server <- function(id, Metrics) {
       
       output$method_precision_plot <- renderPlot({
         
-        return(discrimination_bands_plot(Metrics()))
+        return(discrimination_bands_plot(Metrics())$db_plot_df)
+        
+      })
+      
+      output$method_precision_plot_conc <- renderPlot({
+        
+        return(discrimination_bands_plot(Metrics())$db_plot_conc)
+        
+      })
+      
+      output$prediction_interval_plot <- renderPlot({
+        
+        return(discrimination_bands_plot(Metrics())$pred_ints_plot)
         
       })
       
       output$pi_comparison_table <- DT::renderDataTable({
         
         if(is.null(Metrics()$compare)) {
+          return(NULL)
+        }
+        
+        if(!Metrics()$multiple_methods) {
           return(NULL)
         }
         
@@ -443,6 +478,10 @@ tp7Server <- function(id, Metrics) {
           return(NULL)
         }
         
+        if(!Metrics()$multiple_methods) {
+          return(NULL)
+        }
+        
         outdf <- Metrics()$compare %>%
           as.data.frame() %>%
           dplyr::filter(Metric == "R.squared")
@@ -466,6 +505,10 @@ tp7Server <- function(id, Metrics) {
           return(NULL)
         }
         
+        if(!Metrics()$multiple_methods) {
+          return(NULL)
+        }
+        
         outdf <- Metrics()$compare %>%
           as.data.frame() %>%
           dplyr::filter(Metric == "Prop.Const.x")
@@ -486,6 +529,10 @@ tp7Server <- function(id, Metrics) {
       output$cv_comparison_table <- DT::renderDataTable({
         
         if(is.null(Metrics()$compare)) {
+          return(NULL)
+        }
+        
+        if(!Metrics()$multiple_methods) {
           return(NULL)
         }
         
