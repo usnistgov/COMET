@@ -22,8 +22,8 @@ ui<-shinyUI(
   fluidPage(id='fullpage',#theme=shinytheme('spacelab'),
 
   tags$link(rel="stylesheet",href='my_style.css'),
-  tags$link(rel='stylesheet',href='nist-style.css',),
-  tags$head(tags$link(rel="shortcut icon", href="favicon.ico")),
+  tags$link(rel='stylesheet',href='nist-style.css'),
+  tags$head(tags$link(rel="shortcut icon", href="www_files/favicon.ico")),
   tags$head(HTML("<title>COMET: Counting Method Evaluation Tool</title>")),
   
   HTML(
