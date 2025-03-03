@@ -912,8 +912,8 @@ process_method = function(data,starting_index) {
 
 simple_to_gui = function(data) {
   
-  method_starts = grep('method',data$...1,ignore.case = T)
-  method_starts = method_starts[method_starts > 3]
+  method_starts = grep('target dilution fraction',data$...1,ignore.case = T) - 1
+  method_starts = method_starts[method_starts >= 4]
   
   lod = as.list(rep(0,length(method_starts)))
   names(lod) = as.character(1:length(lod))
