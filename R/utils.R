@@ -146,6 +146,9 @@ check_inputs = function(dataset,
     }
   }
   
+  # remove NAs just in case
+  dat = dat[!is.na(dat$cell_conc),]
+  
   # some columns must be numeric
   numeric_columns = c('cell_conc',
                       'random_sample_number',
